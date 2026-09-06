@@ -1,0 +1,6 @@
+{
+  "name": "VERITAS ADMIN",
+  "description": "Secure business administration dashboard for managing the VERITAS e-commerce store.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

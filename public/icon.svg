@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#070707" rx="64"/>
+  <!-- Gold Accent Diamond Outline -->
+  <polygon points="256,76 436,256 256,436 76,256" fill="none" stroke="#D4AF37" stroke-width="4" stroke-opacity="0.8"/>
+  <!-- Central White Box -->
+  <rect x="146" y="146" width="220" height="220" fill="#FFFFFF" rx="4"/>
+  <!-- Inner Black Diamond -->
+  <polygon points="256,176 336,256 256,336 176,256" fill="#000000"/>
+  <!-- Gold Pips -->
+  <circle cx="256" cy="60" r="6" fill="#D4AF37"/>
+  <circle cx="256" cy="452" r="6" fill="#D4AF37"/>
+</svg>

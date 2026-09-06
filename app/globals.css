@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --color-veritas-black: #0A0A0A;
+  --color-veritas-charcoal: #0F0F0F;
+  --color-veritas-white: #ffffff;
+  --color-veritas-gold: #D4AF37;
+  --color-veritas-gold-light: rgba(212, 175, 55, 0.2);
+  --color-veritas-gold-dark: #B3932F;
+  --color-veritas-gray: #151515;
+  --color-veritas-gray-dark: #333333;
+}
+
+body {
+  background-color: var(--color-veritas-black);
+  color: var(--color-veritas-white);
+}
