@@ -80,17 +80,18 @@ export default function SettingsPage() {
       )}
 
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Store Settings</h1>
-          <p className="text-xs text-[#888] font-mono mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-widest text-white">Store Settings</h1>
+          <p className="text-[11px] sm:text-xs text-[#888] font-mono mt-0.5 sm:mt-1">
             CONFIGURATION, BRAND PARAMETERS & BACKEND TELEMETRY
           </p>
         </div>
         <button 
+          type="button"
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center justify-center px-6 py-2.5 bg-[#D4AF37] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider hover:bg-[#B3932F] transition-colors disabled:opacity-50 font-mono"
+          className="w-full sm:w-auto min-h-[44px] flex items-center justify-center px-6 py-2.5 bg-[#D4AF37] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider hover:bg-[#B3932F] transition-colors disabled:opacity-50 font-mono active:scale-95 cursor-pointer"
         >
           {saving ? (
             <>
@@ -106,11 +107,11 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
         <div className="lg:col-span-2 space-y-6">
           {/* GENERAL DETAILS */}
-          <div className="bg-[#111] border border-[#1F1F1F] p-6 shadow-sm">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-gray-200 mb-6 border-b border-[#1F1F1F] pb-4 font-mono">
+          <div className="bg-[#111] border border-[#1F1F1F] p-4 sm:p-6 shadow-sm">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-gray-200 mb-4 sm:mb-6 border-b border-[#1F1F1F] pb-3 sm:pb-4 font-mono">
               General Brand Coordinates
             </h2>
             
@@ -121,7 +122,7 @@ export default function SettingsPage() {
                   type="text" 
                   value={brandName}
                   onChange={(e) => setBrandName(e.target.value)}
-                  className="w-full bg-[#0A0A0A] border border-[#333] p-3 text-white focus:outline-none focus:border-[#D4AF37]" 
+                  className="w-full min-h-[44px] bg-[#0A0A0A] border border-[#333] p-3 text-base sm:text-xs text-white focus:outline-none focus:border-[#D4AF37]" 
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -131,7 +132,7 @@ export default function SettingsPage() {
                     type="email" 
                     value={supportEmail}
                     onChange={(e) => setSupportEmail(e.target.value)}
-                    className="w-full bg-[#0A0A0A] border border-[#333] p-3 text-white focus:outline-none focus:border-[#D4AF37]" 
+                    className="w-full min-h-[44px] bg-[#0A0A0A] border border-[#333] p-3 text-base sm:text-xs text-white focus:outline-none focus:border-[#D4AF37]" 
                   />
                 </div>
                 <div>
@@ -140,7 +141,7 @@ export default function SettingsPage() {
                     type="email" 
                     value={businessEmail}
                     onChange={(e) => setBusinessEmail(e.target.value)}
-                    className="w-full bg-[#0A0A0A] border border-[#333] p-3 text-white focus:outline-none focus:border-[#D4AF37]" 
+                    className="w-full min-h-[44px] bg-[#0A0A0A] border border-[#333] p-3 text-base sm:text-xs text-white focus:outline-none focus:border-[#D4AF37]" 
                   />
                 </div>
               </div>
@@ -148,8 +149,8 @@ export default function SettingsPage() {
           </div>
 
           {/* STOREFRONT DISPLAY */}
-          <div className="bg-[#111] border border-[#1F1F1F] p-6 shadow-sm">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-gray-200 mb-6 border-b border-[#1F1F1F] pb-4 font-mono">
+          <div className="bg-[#111] border border-[#1F1F1F] p-4 sm:p-6 shadow-sm">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-gray-200 mb-4 sm:mb-6 border-b border-[#1F1F1F] pb-3 sm:pb-4 font-mono">
               Storefront Display & Announcement
             </h2>
             
@@ -160,7 +161,7 @@ export default function SettingsPage() {
                   type="text" 
                   value={announcement}
                   onChange={(e) => setAnnouncement(e.target.value)}
-                  className="w-full bg-[#0A0A0A] border border-[#333] p-3 text-white focus:outline-none focus:border-[#D4AF37]" 
+                  className="w-full min-h-[44px] bg-[#0A0A0A] border border-[#333] p-3 text-base sm:text-xs text-white focus:outline-none focus:border-[#D4AF37]" 
                 />
               </div>
               <div>
@@ -169,7 +170,7 @@ export default function SettingsPage() {
                   type="text" 
                   value={shippingDisplay}
                   onChange={(e) => setShippingDisplay(e.target.value)}
-                  className="w-full bg-[#0A0A0A] border border-[#333] p-3 text-white focus:outline-none focus:border-[#D4AF37]" 
+                  className="w-full min-h-[44px] bg-[#0A0A0A] border border-[#333] p-3 text-base sm:text-xs text-white focus:outline-none focus:border-[#D4AF37]" 
                 />
               </div>
               <div>
@@ -177,7 +178,7 @@ export default function SettingsPage() {
                 <select 
                   value={storeStatus}
                   onChange={(e) => setStoreStatus(e.target.value)}
-                  className="w-full bg-[#0A0A0A] border border-[#333] p-3 text-white focus:outline-none focus:border-[#D4AF37]"
+                  className="w-full min-h-[44px] bg-[#0A0A0A] border border-[#333] p-3 text-base sm:text-xs text-white focus:outline-none focus:border-[#D4AF37]"
                 >
                   <option>Online & Taking Orders</option>
                   <option>Password Protected (Pre-Drop)</option>
@@ -188,7 +189,7 @@ export default function SettingsPage() {
           </div>
 
           {/* BACKEND INFRASTRUCTURE TELEMETRY */}
-          <div className="bg-[#111] border border-[#1F1F1F] p-6 shadow-sm">
+          <div className="bg-[#111] border border-[#1F1F1F] p-4 sm:p-6 shadow-sm">
             <h2 className="text-sm font-bold uppercase tracking-wider text-gray-200 mb-4 border-b border-[#1F1F1F] pb-4 font-mono flex items-center justify-between">
               <span>Connected Supabase Infrastructure</span>
               <span className="text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded">
@@ -217,8 +218,8 @@ export default function SettingsPage() {
 
         <div className="space-y-6">
           {/* SOCIAL LINKS */}
-          <div className="bg-[#111] border border-[#1F1F1F] p-6 shadow-sm">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-gray-200 mb-6 border-b border-[#1F1F1F] pb-4 font-mono">
+          <div className="bg-[#111] border border-[#1F1F1F] p-4 sm:p-6 shadow-sm">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-gray-200 mb-4 sm:mb-6 border-b border-[#1F1F1F] pb-3 sm:pb-4 font-mono">
               Social Links
             </h2>
             <div className="space-y-4 font-mono text-xs">
@@ -228,7 +229,7 @@ export default function SettingsPage() {
                   type="text" 
                   value={instagram}
                   onChange={(e) => setInstagram(e.target.value)}
-                  className="w-full bg-[#0A0A0A] border border-[#333] p-3 text-white focus:outline-none focus:border-[#D4AF37]" 
+                  className="w-full min-h-[44px] bg-[#0A0A0A] border border-[#333] p-3 text-base sm:text-xs text-white focus:outline-none focus:border-[#D4AF37]" 
                 />
               </div>
               <div>
@@ -237,7 +238,7 @@ export default function SettingsPage() {
                   type="text" 
                   value={twitter}
                   onChange={(e) => setTwitter(e.target.value)}
-                  className="w-full bg-[#0A0A0A] border border-[#333] p-3 text-white focus:outline-none focus:border-[#D4AF37]" 
+                  className="w-full min-h-[44px] bg-[#0A0A0A] border border-[#333] p-3 text-base sm:text-xs text-white focus:outline-none focus:border-[#D4AF37]" 
                 />
               </div>
               <div>
@@ -246,14 +247,14 @@ export default function SettingsPage() {
                   type="text" 
                   value={tiktok}
                   onChange={(e) => setTiktok(e.target.value)}
-                  className="w-full bg-[#0A0A0A] border border-[#333] p-3 text-white focus:outline-none focus:border-[#D4AF37]" 
+                  className="w-full min-h-[44px] bg-[#0A0A0A] border border-[#333] p-3 text-base sm:text-xs text-white focus:outline-none focus:border-[#D4AF37]" 
                 />
               </div>
             </div>
           </div>
           
           {/* STORE CURRENCY */}
-          <div className="bg-[#111] border border-[#1F1F1F] p-6 shadow-sm">
+          <div className="bg-[#111] border border-[#1F1F1F] p-4 sm:p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6 border-b border-[#1F1F1F] pb-4">
               <h2 className="text-sm font-bold uppercase tracking-wider text-gray-200 font-mono">Store Currency</h2>
               <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded font-bold">

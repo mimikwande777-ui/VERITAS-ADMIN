@@ -11,7 +11,7 @@ function AdminLoginForm() {
   const searchParams = useSearchParams();
   const redirectUrl = searchParams?.get('redirect') || '/admin/dashboard';
   
-  const { signIn, isAuthenticated, isDevBypass, toggleDevBypass } = useAdminAuth();
+  const { signIn } = useAdminAuth();
 
   const [configured] = useState(() => isSupabaseConfigured());
   const [email, setEmail] = useState('');
@@ -45,13 +45,8 @@ function AdminLoginForm() {
     }
   };
 
-  const handleBypassContinue = () => {
-    toggleDevBypass(true);
-    router.push(redirectUrl);
-  };
-
   return (
-    <div className="min-h-screen bg-[#070707] text-[#E0E0E0] flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden font-sans">
+    <div className="min-h-screen bg-[#070707] text-[#E0E0E0] flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden font-sans pt-safe pb-safe">
       {/* Background ambient lighting */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-[#D4AF37]/5 rounded-full blur-3xl pointer-events-none"></div>
 
@@ -70,8 +65,8 @@ function AdminLoginForm() {
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4 sm:px-0">
-        <div className="bg-[#0E0E0E] border border-[#1F1F1F] py-8 px-6 shadow-2xl rounded-xs sm:px-10 space-y-6">
+      <div className="mt-6 sm:mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10 w-full">
+        <div className="bg-[#0E0E0E] border border-[#1F1F1F] py-6 sm:py-8 px-4 sm:px-10 shadow-2xl rounded-xs space-y-5 sm:space-y-6">
           
           {/* NOTICE BANNER */}
           <div className="border-b border-[#1A1A1A] pb-4">
@@ -80,11 +75,11 @@ function AdminLoginForm() {
               <span className="uppercase tracking-wider">Restricted Corporate Gateway</span>
             </div>
             <p className="text-[11px] text-[#666] mt-1">
-              Authorized personnel only. Sessions are monitored and cryptographically authenticated.
+              Authorized personnel only. Access strictly restricted to verified records in <code className="text-[#D4AF37]">public.admin_users</code>.
             </p>
           </div>
 
-          {/* MISSING CONFIGURATION NOTICE (Non-crashing notice when Supabase Auth key is not set) */}
+          {/* MISSING CONFIGURATION NOTICE */}
           {!configured && (
             <div className="p-3.5 bg-amber-950/30 border border-amber-500/40 rounded-xs space-y-2 text-xs font-mono">
               <div className="flex items-center gap-2 text-amber-300 font-bold uppercase text-[11px]">
@@ -98,40 +93,6 @@ function AdminLoginForm() {
                 <div>URL: <span className="text-zinc-300">https://cdzvmnixlhjjrpyoaemg.supabase.co</span></div>
                 <div>Required Key: <code className="text-amber-400">NEXT_PUBLIC_SUPABASE_ANON_KEY</code></div>
               </div>
-              <p className="text-zinc-400 text-[10px]">
-                You can configure this key in your project settings, or activate development bypass mode below for local testing.
-              </p>
-              {!isDevBypass && (
-                <button
-                  type="button"
-                  onClick={() => toggleDevBypass(true)}
-                  className="w-full mt-1.5 py-1.5 px-3 bg-amber-900/40 hover:bg-amber-800/60 border border-amber-700/50 text-amber-300 text-[11px] uppercase tracking-wider rounded-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Key className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Enable Local Development Bypass</span>
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* DEV BYPASS NOTIFICATION (Visible only when bypass is possible or active) */}
-          {isDevBypass && (
-            <div className="p-3 bg-amber-950/40 border border-amber-800/50 rounded-xs space-y-2">
-              <div className="flex items-center gap-2 text-amber-300 font-mono text-xs font-bold uppercase">
-                <ShieldAlert className="w-4 h-4 text-amber-400" />
-                <span>Development Mode Active</span>
-              </div>
-              <p className="text-[11px] text-amber-200/80 font-mono leading-relaxed">
-                Development access bypass is enabled. You can log in with your credentials or continue into the dashboard with your local development session.
-              </p>
-              <button
-                type="button"
-                onClick={handleBypassContinue}
-                className="w-full mt-1 py-1.5 px-3 bg-amber-900/60 hover:bg-amber-800/80 border border-amber-600/50 text-amber-200 text-xs font-mono uppercase tracking-wider rounded-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                <span>Enter via Dev Bypass Session</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
             </div>
           )}
 
@@ -156,7 +117,7 @@ function AdminLoginForm() {
                 Admin Email
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#555]">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#555]">
                   <Mail className="w-4 h-4" />
                 </div>
                 <input
@@ -168,7 +129,7 @@ function AdminLoginForm() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@veritas.internal"
-                  className="block w-full pl-10 pr-3 py-2.5 bg-[#141414] border border-[#262626] rounded-xs text-white placeholder-[#555] text-xs font-mono focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] transition-all"
+                  className="block w-full min-h-[44px] pl-10 pr-3 py-2.5 bg-[#141414] border border-[#262626] rounded-xs text-white placeholder-[#555] text-base sm:text-xs font-mono focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] transition-all"
                 />
               </div>
             </div>
@@ -181,7 +142,7 @@ function AdminLoginForm() {
                 Admin Password
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#555]">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#555]">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
@@ -193,12 +154,13 @@ function AdminLoginForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
-                  className="block w-full pl-10 pr-10 py-2.5 bg-[#141414] border border-[#262626] rounded-xs text-white placeholder-[#555] text-xs font-mono focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] transition-all"
+                  className="block w-full min-h-[44px] pl-10 pr-12 py-2.5 bg-[#141414] border border-[#262626] rounded-xs text-white placeholder-[#555] text-base sm:text-xs font-mono focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#555] hover:text-[#AAA] transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 w-11 flex items-center justify-center text-[#555] hover:text-[#AAA] transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -209,11 +171,11 @@ function AdminLoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-white hover:bg-[#D4AF37] text-black font-mono font-bold text-xs uppercase tracking-[0.15em] rounded-xs transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="w-full min-h-[44px] flex items-center justify-center gap-2 py-3 px-4 bg-white hover:bg-[#D4AF37] text-black font-mono font-bold text-xs uppercase tracking-[0.15em] rounded-xs transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed active:scale-98 cursor-pointer"
               >
                 {loading ? (
                   <>
-                    <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
                     <span>Verifying Credentials...</span>
                   </>
                 ) : (

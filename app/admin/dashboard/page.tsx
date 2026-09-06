@@ -92,100 +92,100 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Top Breadcrumb & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-mono text-[#888] mb-1">
             <span>VERITAS</span>
             <span>/</span>
             <span className="text-[#D4AF37] font-bold">DASHBOARD</span>
           </div>
-          <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Administrative Overview</h1>
-          <p className="text-xs text-[#888] font-mono mt-0.5">REAL-TIME STORE TELEMETRY & OPERATIONS (SUPABASE CONNECTED)</p>
+          <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-widest text-white">Administrative Overview</h1>
+          <p className="text-[11px] sm:text-xs text-[#888] font-mono mt-0.5">REAL-TIME STORE TELEMETRY & OPERATIONS</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 w-full sm:w-auto">
           <Link 
             href="/admin/products/new" 
-            className="px-4 py-2 bg-[#D4AF37] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider hover:bg-[#B3932F] transition-colors inline-flex items-center gap-1.5"
+            className="min-h-[44px] px-4 py-2 bg-[#D4AF37] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider hover:bg-[#B3932F] transition-colors flex items-center justify-center gap-1.5 active:scale-95"
           >
-            <ShoppingBag className="w-3.5 h-3.5" />
+            <ShoppingBag className="w-4 h-4" />
             Add Product
           </Link>
           <Link 
             href="/admin/orders" 
-            className="px-4 py-2 border border-[#333] bg-[#111] text-xs font-bold uppercase tracking-wider hover:bg-[#181818] text-white transition-colors inline-flex items-center gap-1.5"
+            className="min-h-[44px] px-4 py-2 border border-[#333] bg-[#111] text-xs font-bold uppercase tracking-wider hover:bg-[#181818] text-white transition-colors flex items-center justify-center gap-1.5 active:scale-95"
           >
-            <SendHorizontal className="w-3.5 h-3.5 text-[#D4AF37]" />
-            Orders Queue ({orders.length})
+            <SendHorizontal className="w-4 h-4 text-[#D4AF37]" />
+            Orders ({orders.length})
           </Link>
         </div>
       </div>
 
       {/* 6 TOP ADMINISTRATIVE METRIC CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-4">
         {/* 1. TOTAL PRODUCTS */}
-        <div className="bg-[#111] border border-[#1F1F1F] p-4 flex flex-col justify-between hover:border-[#333] transition-colors">
-          <span className="text-[10px] text-[#888] uppercase tracking-wider font-mono font-bold">TOTAL PRODUCTS</span>
-          <div className="mt-3">
-            <h2 className="text-2xl sm:text-3xl font-light text-white font-mono">{totalProductsCount}</h2>
-            <p className="text-[10px] text-[#666] mt-1 font-mono">In master catalog</p>
+        <div className="bg-[#111] border border-[#1F1F1F] p-3 sm:p-4 flex flex-col justify-between hover:border-[#333] transition-colors">
+          <span className="text-[9px] sm:text-[10px] text-[#888] uppercase tracking-wider font-mono font-bold">TOTAL PRODUCTS</span>
+          <div className="mt-2 sm:mt-3">
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-light text-white font-mono">{totalProductsCount}</h2>
+            <p className="text-[9px] sm:text-[10px] text-[#666] mt-0.5 sm:mt-1 font-mono">In master catalog</p>
           </div>
         </div>
 
         {/* 2. PUBLISHED PRODUCTS */}
-        <div className="bg-[#111] border border-[#1F1F1F] p-4 flex flex-col justify-between hover:border-[#333] transition-colors">
-          <span className="text-[10px] text-[#888] uppercase tracking-wider font-mono font-bold">PUBLISHED PRODUCTS</span>
-          <div className="mt-3">
-            <h2 className="text-2xl sm:text-3xl font-light text-emerald-400 font-mono">{publishedProductsCount}</h2>
-            <p className="text-[10px] text-[#666] mt-1 font-mono">Live on storefront</p>
+        <div className="bg-[#111] border border-[#1F1F1F] p-3 sm:p-4 flex flex-col justify-between hover:border-[#333] transition-colors">
+          <span className="text-[9px] sm:text-[10px] text-[#888] uppercase tracking-wider font-mono font-bold">PUBLISHED</span>
+          <div className="mt-2 sm:mt-3">
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-light text-emerald-400 font-mono">{publishedProductsCount}</h2>
+            <p className="text-[9px] sm:text-[10px] text-[#666] mt-0.5 sm:mt-1 font-mono">Live on store</p>
           </div>
         </div>
 
         {/* 3. TOTAL INVENTORY */}
-        <div className="bg-[#111] border border-[#1F1F1F] p-4 flex flex-col justify-between hover:border-[#333] transition-colors">
-          <span className="text-[10px] text-[#888] uppercase tracking-wider font-mono font-bold">TOTAL INVENTORY</span>
-          <div className="mt-3">
-            <h2 className="text-2xl sm:text-3xl font-light text-white font-mono">{totalInventoryUnits}</h2>
-            <p className="text-[10px] text-[#666] mt-1 font-mono">Available units</p>
+        <div className="bg-[#111] border border-[#1F1F1F] p-3 sm:p-4 flex flex-col justify-between hover:border-[#333] transition-colors">
+          <span className="text-[9px] sm:text-[10px] text-[#888] uppercase tracking-wider font-mono font-bold">TOTAL STOCK</span>
+          <div className="mt-2 sm:mt-3">
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-light text-white font-mono">{totalInventoryUnits}</h2>
+            <p className="text-[9px] sm:text-[10px] text-[#666] mt-0.5 sm:mt-1 font-mono">Units on hand</p>
           </div>
         </div>
 
         {/* 4. LOW STOCK */}
-        <div className="bg-[#111] border border-[#1F1F1F] p-4 flex flex-col justify-between hover:border-[#333] transition-colors">
-          <span className="text-[10px] text-[#888] uppercase tracking-wider font-mono font-bold">LOW STOCK</span>
-          <div className="mt-3">
-            <h2 className={`text-2xl sm:text-3xl font-light font-mono ${lowStockCount > 0 ? 'text-amber-400' : 'text-white'}`}>
+        <div className="bg-[#111] border border-[#1F1F1F] p-3 sm:p-4 flex flex-col justify-between hover:border-[#333] transition-colors">
+          <span className="text-[9px] sm:text-[10px] text-[#888] uppercase tracking-wider font-mono font-bold">STOCK ALERTS</span>
+          <div className="mt-2 sm:mt-3">
+            <h2 className={`text-xl sm:text-2xl lg:text-3xl font-light font-mono ${lowStockCount > 0 ? 'text-amber-400' : 'text-white'}`}>
               {lowStockCount}
             </h2>
-            <p className="text-[10px] text-[#666] mt-1 font-mono">{outOfStockItems.length} out of stock</p>
+            <p className="text-[9px] sm:text-[10px] text-[#666] mt-0.5 sm:mt-1 font-mono">{outOfStockItems.length} out of stock</p>
           </div>
         </div>
 
         {/* 5. TOTAL ORDERS */}
-        <div className="bg-[#111] border border-[#1F1F1F] p-4 flex flex-col justify-between hover:border-[#333] transition-colors">
-          <span className="text-[10px] text-[#888] uppercase tracking-wider font-mono font-bold">TOTAL ORDERS</span>
-          <div className="mt-3">
-            <h2 className="text-2xl sm:text-3xl font-light text-white font-mono">{totalOrdersCount}</h2>
-            <p className="text-[10px] text-[#666] mt-1 font-mono">{pendingOrdersCount} pending OTC</p>
+        <div className="bg-[#111] border border-[#1F1F1F] p-3 sm:p-4 flex flex-col justify-between hover:border-[#333] transition-colors">
+          <span className="text-[9px] sm:text-[10px] text-[#888] uppercase tracking-wider font-mono font-bold">TOTAL ORDERS</span>
+          <div className="mt-2 sm:mt-3">
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-light text-white font-mono">{totalOrdersCount}</h2>
+            <p className="text-[9px] sm:text-[10px] text-[#666] mt-0.5 sm:mt-1 font-mono">{pendingOrdersCount} pending OTC</p>
           </div>
         </div>
 
         {/* 6. PAID REVENUE */}
-        <div className="bg-[#111] border border-[#1F1F1F] p-4 flex flex-col justify-between hover:border-[#333] transition-colors">
-          <span className="text-[10px] text-[#888] uppercase tracking-wider font-mono font-bold">PAID REVENUE</span>
-          <div className="mt-3">
-            <h2 className="text-xl sm:text-2xl font-light text-[#D4AF37] font-mono truncate">
+        <div className="bg-[#111] border border-[#1F1F1F] p-3 sm:p-4 flex flex-col justify-between hover:border-[#333] transition-colors">
+          <span className="text-[9px] sm:text-[10px] text-[#888] uppercase tracking-wider font-mono font-bold">REVENUE</span>
+          <div className="mt-2 sm:mt-3">
+            <h2 className="text-lg sm:text-xl lg:text-2xl font-light text-[#D4AF37] font-mono truncate">
               {formatZAR(paidRevenue > 0 ? paidRevenue : totalGrossRevenue)}
             </h2>
-            <p className="text-[10px] text-[#666] mt-1 font-mono">Gross: {formatZAR(totalGrossRevenue)}</p>
+            <p className="text-[9px] sm:text-[10px] text-[#666] mt-0.5 sm:mt-1 font-mono truncate">Gross: {formatZAR(totalGrossRevenue)}</p>
           </div>
         </div>
       </div>
 
       {/* MIDDLE ROW: SALES VELOCITY CHART & INVENTORY RADAR */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-w-0">
         {/* Sales Velocity Chart */}
-        <div className="lg:col-span-8 bg-[#111] border border-[#1F1F1F] p-6 relative">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+        <div className="lg:col-span-8 bg-[#111] border border-[#1F1F1F] p-4 sm:p-6 relative min-w-0 overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
             <div>
               <h3 className="text-xs font-bold uppercase tracking-widest text-white">Sales Volume & Orders</h3>
               <p className="text-[11px] text-[#666] font-mono mt-0.5">REAL SUPABASE ORDER REVENUE VOLUME</p>
@@ -198,24 +198,24 @@ export default function Dashboard() {
             </div>
           </div>
           
-          <div className="h-64 w-full flex items-center justify-center">
+          <div className="h-56 sm:h-64 w-full flex items-center justify-center min-w-0">
             {loadingOrders ? (
               <RefreshCw className="w-6 h-6 text-[#D4AF37] animate-spin" />
             ) : chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1A1A1A" />
                   <XAxis 
                     dataKey="name" 
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fontSize: 11, fill: '#666', fontWeight: 600 }} 
+                    tick={{ fontSize: 10, fill: '#666', fontWeight: 600 }} 
                     dy={10} 
                   />
                   <YAxis 
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fontSize: 11, fill: '#666' }} 
+                    tick={{ fontSize: 10, fill: '#666' }} 
                     tickFormatter={(val) => `R${formatNumber(val)}`} 
                   />
                   <Tooltip 
@@ -225,7 +225,7 @@ export default function Dashboard() {
                     labelStyle={{ color: '#888', fontSize: '11px', textTransform: 'uppercase' }}
                     formatter={(value: any) => [formatZAR(Number(value)), 'Revenue']}
                   />
-                  <Bar dataKey="sales" fill="#D4AF37" activeBar={{ fill: '#F5D77F' }} radius={[2, 2, 0, 0]} barSize={36} />
+                  <Bar dataKey="sales" fill="#D4AF37" activeBar={{ fill: '#F5D77F' }} radius={[2, 2, 0, 0]} barSize={28} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -239,22 +239,22 @@ export default function Dashboard() {
         </div>
 
         {/* Low Stock Monitor */}
-        <div className="lg:col-span-4 bg-[#111] border border-[#1F1F1F] p-6 flex flex-col justify-between">
+        <div className="lg:col-span-4 bg-[#111] border border-[#1F1F1F] p-4 sm:p-6 flex flex-col justify-between min-w-0">
           <div>
             <div className="flex items-center justify-between mb-4 border-b border-[#1F1F1F] pb-3">
               <h3 className="text-xs font-bold uppercase tracking-widest text-white">Stock Alerts</h3>
-              <Link href="/admin/inventory" className="text-[10px] font-mono text-[#D4AF37] hover:underline uppercase flex items-center gap-1">
-                Manage <ExternalLink className="w-2.5 h-2.5" />
+              <Link href="/admin/inventory" className="min-h-[44px] flex items-center text-xs font-mono text-[#D4AF37] hover:underline uppercase gap-1">
+                Manage <ExternalLink className="w-3 h-3" />
               </Link>
             </div>
             
             {lowStockItems.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {lowStockItems.slice(0, 4).map((item) => (
-                  <div key={item.id} className="p-3 bg-[#151515] border border-[#222] rounded flex items-center justify-between">
-                    <div className="overflow-hidden pr-2">
+                  <div key={item.id} className="p-3 bg-[#151515] border border-[#222] rounded flex items-center justify-between gap-2">
+                    <div className="overflow-hidden min-w-0">
                       <p className="text-xs font-bold text-white truncate">{item.product}</p>
-                      <p className="text-[10px] text-[#888] font-mono">{item.color} • Size {item.size}</p>
+                      <p className="text-[11px] text-[#888] font-mono truncate">{item.color} • Size {item.size}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
@@ -272,7 +272,7 @@ export default function Dashboard() {
               <div className="text-center py-10 px-4 border border-dashed border-[#222] rounded bg-[#0D0D0D]">
                 <CheckCircle2 className="w-7 h-7 text-[#444] mx-auto mb-2" />
                 <h4 className="text-xs font-bold uppercase tracking-wider text-white">NO STOCK ALERTS</h4>
-                <p className="text-[10px] text-[#666] font-mono mt-1">All variant inventory levels are healthy.</p>
+                <p className="text-[11px] text-[#666] font-mono mt-1">All variant inventory levels are healthy.</p>
               </div>
             )}
           </div>
@@ -280,7 +280,7 @@ export default function Dashboard() {
           <div className="mt-4 pt-3 border-t border-[#1F1F1F]">
             <Link 
               href="/admin/inventory"
-              className="w-full block text-center py-2 bg-[#1A1A1A] hover:bg-[#222] text-xs font-bold uppercase tracking-wider text-[#BBB] transition-colors"
+              className="min-h-[44px] flex items-center justify-center w-full py-2 bg-[#1A1A1A] hover:bg-[#222] text-xs font-bold uppercase tracking-wider text-[#BBB] transition-colors active:scale-98"
             >
               View All Variants
             </Link>
@@ -288,16 +288,16 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* RECENT ORDERS TABLE */}
+      {/* RECENT ORDERS TABLE & MOBILE CARDS */}
       <div className="bg-[#111] border border-[#1F1F1F] overflow-hidden">
-        <div className="px-6 py-4 border-b border-[#1F1F1F] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#151515]">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-[#1F1F1F] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#151515]">
           <div>
             <h3 className="text-xs font-bold uppercase tracking-widest text-white">Recent Orders & OTC Dispatch</h3>
             <p className="text-[11px] text-[#666] font-mono">LIVE SUPABASE STORE ORDERS QUEUE</p>
           </div>
           <Link 
             href="/admin/orders" 
-            className="text-xs text-[#D4AF37] border border-[#D4AF37]/40 px-3 py-1.5 rounded hover:bg-[#D4AF37]/10 uppercase font-bold tracking-wider text-center transition-colors"
+            className="min-h-[44px] sm:min-h-0 flex items-center justify-center text-xs text-[#D4AF37] border border-[#D4AF37]/40 px-3 py-1.5 rounded hover:bg-[#D4AF37]/10 uppercase font-bold tracking-wider text-center transition-colors"
           >
             Manage All Orders ({orders.length})
           </Link>
@@ -309,61 +309,107 @@ export default function Dashboard() {
             Loading real orders from Supabase...
           </div>
         ) : orders.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left whitespace-nowrap">
-              <thead className="bg-[#0A0A0A] text-[10px] text-[#666] uppercase tracking-wider border-b border-[#1F1F1F]">
-                <tr>
-                  <th className="px-6 py-3 font-bold">Order Number</th>
-                  <th className="px-6 py-3 font-bold">Customer</th>
-                  <th className="px-6 py-3 font-bold">Items</th>
-                  <th className="px-6 py-3 font-bold text-right">Total</th>
-                  <th className="px-6 py-3 font-bold">Payment</th>
-                  <th className="px-6 py-3 font-bold">Status</th>
-                  <th className="px-6 py-3 font-bold text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="text-xs divide-y divide-[#1F1F1F]">
-                {orders.map((order) => {
-                  const customerName = order.customer.name;
-                  const itemsCount = order.products ? order.products.reduce((acc, p) => acc + p.quantity, 0) : 1;
-                  
-                  return (
-                    <tr key={order.id} className="hover:bg-[#151515] transition-colors">
-                      <td className="px-6 py-4 font-mono font-bold text-white">{order.id}</td>
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-white">{customerName}</div>
-                        <div className="text-[11px] text-[#666] font-mono">{order.customer.email}</div>
-                      </td>
-                      <td className="px-6 py-4 text-[#888] font-mono">
-                        {itemsCount} {itemsCount === 1 ? 'item' : 'items'}
-                      </td>
-                      <td className="px-6 py-4 text-right font-bold text-[#D4AF37] font-mono">
-                        {formatZAR(order.total)}
-                      </td>
-                      <td className="px-6 py-4">
+          <>
+            {/* Mobile View: Order Cards (< md) */}
+            <div className="md:hidden divide-y divide-[#1F1F1F]">
+              {orders.map((order) => {
+                const customerName = order.customer.name;
+                const itemsCount = order.products ? order.products.reduce((acc, p) => acc + p.quantity, 0) : 1;
+
+                return (
+                  <div key={order.id} className="p-3.5 sm:p-4 bg-[#111] space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono font-bold text-sm text-white">{order.id}</span>
+                      <span className="font-bold text-[#D4AF37] font-mono text-sm">{formatZAR(order.total)}</span>
+                    </div>
+
+                    <div className="text-xs">
+                      <div className="font-medium text-white">{customerName}</div>
+                      <div className="text-[11px] text-[#777] font-mono truncate">{order.customer.email}</div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-950/40 text-amber-400 border border-amber-800/40 uppercase">
                           {getPaymentStatusLabel(order.paymentStatus)}
                         </span>
-                      </td>
-                      <td className="px-6 py-4">
                         <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#1A1A1A] text-[#D4AF37] border border-[#333] uppercase">
                           {getFulfilmentStatusLabel(order.fulfilmentStatus)}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Link
-                          href="/admin/orders"
-                          className="inline-flex items-center gap-1 text-[11px] font-bold text-[#D4AF37] hover:text-white uppercase tracking-wider"
-                        >
-                          DISPATCH / DETAILS <ArrowUpRight className="w-3 h-3" />
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <span className="text-[10px] font-mono text-[#888]">
+                          {itemsCount} {itemsCount === 1 ? 'item' : 'items'}
+                        </span>
+                      </div>
+
+                      <Link
+                        href="/admin/orders"
+                        className="min-h-[44px] flex items-center gap-1 text-xs font-bold text-[#D4AF37] hover:text-white uppercase tracking-wider active:scale-95"
+                      >
+                        Details <ArrowUpRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop View: Full Table (>= md) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left whitespace-nowrap">
+                <thead className="bg-[#0A0A0A] text-[10px] text-[#666] uppercase tracking-wider border-b border-[#1F1F1F]">
+                  <tr>
+                    <th className="px-6 py-3 font-bold">Order Number</th>
+                    <th className="px-6 py-3 font-bold">Customer</th>
+                    <th className="px-6 py-3 font-bold">Items</th>
+                    <th className="px-6 py-3 font-bold text-right">Total</th>
+                    <th className="px-6 py-3 font-bold">Payment</th>
+                    <th className="px-6 py-3 font-bold">Status</th>
+                    <th className="px-6 py-3 font-bold text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="text-xs divide-y divide-[#1F1F1F]">
+                  {orders.map((order) => {
+                    const customerName = order.customer.name;
+                    const itemsCount = order.products ? order.products.reduce((acc, p) => acc + p.quantity, 0) : 1;
+                    
+                    return (
+                      <tr key={order.id} className="hover:bg-[#151515] transition-colors">
+                        <td className="px-6 py-4 font-mono font-bold text-white">{order.id}</td>
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-white">{customerName}</div>
+                          <div className="text-[11px] text-[#666] font-mono">{order.customer.email}</div>
+                        </td>
+                        <td className="px-6 py-4 text-[#888] font-mono">
+                          {itemsCount} {itemsCount === 1 ? 'item' : 'items'}
+                        </td>
+                        <td className="px-6 py-4 text-right font-bold text-[#D4AF37] font-mono">
+                          {formatZAR(order.total)}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-950/40 text-amber-400 border border-amber-800/40 uppercase">
+                            {getPaymentStatusLabel(order.paymentStatus)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#1A1A1A] text-[#D4AF37] border border-[#333] uppercase">
+                            {getFulfilmentStatusLabel(order.fulfilmentStatus)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <Link
+                            href="/admin/orders"
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-[#D4AF37] hover:text-white uppercase tracking-wider"
+                          >
+                            DISPATCH / DETAILS <ArrowUpRight className="w-3 h-3" />
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : (
           <div className="py-14 text-center px-4">
             <Inbox className="w-10 h-10 text-[#444] mx-auto mb-3" />

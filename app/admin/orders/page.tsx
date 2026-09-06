@@ -265,49 +265,50 @@ INTERNAL TRACK:   ${order.trackingNumber}
       )}
 
       {/* HEADER SECTION */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1F1F1F] pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-[#1F1F1F] pb-4 sm:pb-6">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold uppercase tracking-wider text-white">Orders & OTC Pipeline</h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-wider text-white">Orders & OTC Pipeline</h1>
             <span className="bg-[#141414] text-[#D4AF37] border border-[#D4AF37]/30 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
-              POSTGRESQL LIVE
+              LIVE
             </span>
           </div>
-          <p className="text-xs text-[#888] font-mono mt-1">
-            Over-the-Counter (OTC) dispatch management, custom garment specs & automated waybill routing.
+          <p className="text-[11px] sm:text-xs text-[#888] font-mono mt-0.5 sm:mt-1">
+            Over-the-Counter (OTC) dispatch management, custom garment specs & automated waybills.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
+            type="button"
             onClick={loadOrders}
             disabled={loading}
-            className="px-3 py-2 bg-[#161616] hover:bg-[#222] border border-[#333] rounded-xs text-xs font-mono text-white flex items-center gap-1.5 transition-colors disabled:opacity-50"
+            className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-[#161616] hover:bg-[#222] active:scale-95 border border-[#333] rounded-xs text-xs font-mono text-white flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#D4AF37]' : 'text-[#888]'}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#D4AF37]' : 'text-[#888]'}`} />
             <span>Refresh Queue</span>
           </button>
         </div>
       </div>
 
       {/* SEARCH AND FILTERS */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#0F0F0F] p-4 rounded-xs border border-[#1F1F1F]">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#0F0F0F] p-3 sm:p-4 rounded-xs border border-[#1F1F1F]">
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-[#666] absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search order #, client name, email, waybill..."
+            placeholder="Search order #, client name, email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-[#161616] border border-[#2B2B2B] pl-9 pr-4 py-2.5 text-xs rounded-xs text-white placeholder-[#555] focus:outline-hidden focus:border-[#D4AF37] font-mono"
+            className="w-full min-h-[44px] bg-[#161616] border border-[#2B2B2B] pl-9 pr-4 py-2 text-base md:text-xs rounded-none text-white placeholder-[#555] focus:outline-hidden focus:border-[#D4AF37] font-mono"
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-[#161616] border border-[#2B2B2B] text-white px-3 py-2.5 text-xs rounded-xs font-mono focus:outline-hidden focus:border-[#D4AF37] w-full sm:w-auto"
+            className="w-full sm:w-auto min-h-[44px] bg-[#161616] border border-[#2B2B2B] text-white px-3 py-2 text-base md:text-xs rounded-none font-mono focus:outline-hidden focus:border-[#D4AF37]"
           >
             <option value="all">All Stages ({orders.length})</option>
             <option value="pending">Pending</option>
@@ -414,7 +415,7 @@ INTERNAL TRACK:   ${order.trackingNumber}
                             value={order.fulfilmentStatus}
                             disabled={isUpdating}
                             onChange={(e) => handleUpdateStatus(order, e.target.value)}
-                            className={`w-full text-[10px] font-mono font-bold uppercase rounded px-2.5 py-1.5 border transition-all duration-300 cursor-pointer ${
+                            className={`w-full min-h-[44px] text-xs font-mono font-bold uppercase rounded px-3 py-2 border transition-all duration-300 cursor-pointer ${
                               isUpdating ? 'opacity-50 cursor-wait' : ''
                             } ${
                               order.fulfilmentStatus === 'pending' ? 'bg-amber-950/50 text-amber-400 border-amber-800/40' :
@@ -432,7 +433,7 @@ INTERNAL TRACK:   ${order.trackingNumber}
                             <option value="delivered">Delivered</option>
                           </select>
                           {isUpdating && (
-                            <RefreshCw className="w-3 h-3 animate-spin text-[#D4AF37] absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#D4AF37] absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none" />
                           )}
                         </div>
                       </div>
@@ -440,8 +441,9 @@ INTERNAL TRACK:   ${order.trackingNumber}
                       {/* Mobile Action Buttons (Min 44px touch friendly) */}
                       <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#1C1C1C]">
                         <button
+                          type="button"
                           onClick={() => handleCopyOTC(order)}
-                          className={`min-h-[40px] px-3 py-2 text-xs font-mono font-bold uppercase rounded transition-colors border flex items-center justify-center gap-1.5 ${
+                          className={`min-h-[44px] px-3 py-2 text-xs font-mono font-bold uppercase rounded transition-colors border flex items-center justify-center gap-1.5 active:scale-95 ${
                             copiedId === order.id 
                               ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600' 
                               : 'bg-[#181818] text-white border-[#333] hover:border-[#D4AF37]'
@@ -455,8 +457,9 @@ INTERNAL TRACK:   ${order.trackingNumber}
                         </button>
 
                         <button
+                          type="button"
                           onClick={() => setSelectedOrderDetails(order)}
-                          className="min-h-[40px] px-3 py-2 text-xs font-mono font-bold uppercase rounded bg-[#181818] text-[#D4AF37] hover:text-white border border-[#333] hover:border-[#555] transition-colors flex items-center justify-center gap-1"
+                          className="min-h-[44px] px-3 py-2 text-xs font-mono font-bold uppercase rounded bg-[#181818] text-[#D4AF37] hover:text-white border border-[#333] hover:border-[#555] active:scale-95 transition-colors flex items-center justify-center gap-1"
                         >
                           <span>Full Details</span>
                           <ChevronRight className="w-3.5 h-3.5" />

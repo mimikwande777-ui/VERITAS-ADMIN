@@ -379,71 +379,75 @@ export default function InventoryPage() {
       )}
 
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Variant Inventory</h1>
-          <p className="text-xs text-[#888] font-mono mt-1">
-            DATABASE SOURCE OF TRUTH: <code className="text-[#D4AF37]">public.product_variants.stock_quantity</code>
+          <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-widest text-white">Variant Inventory</h1>
+          <p className="text-[11px] sm:text-xs text-[#888] font-mono mt-0.5 sm:mt-1">
+            SUPABASE STOCK TELEMETRY & DISPATCH
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <button 
+            type="button"
             onClick={() => { void loadData(true); }}
             disabled={loading}
-            className="p-2 border border-[#333] bg-[#111] hover:bg-[#1A1A1A] text-[#888] hover:text-white rounded transition-colors"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 border border-[#333] bg-[#111] hover:bg-[#1A1A1A] text-[#888] hover:text-white rounded transition-colors active:scale-95"
             title="Reload from Supabase"
+            aria-label="Reload from Supabase"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#D4AF37]' : ''}`} />
           </button>
           <button 
+            type="button"
             onClick={handleExportCSV}
             disabled={items.length === 0}
-            className="px-4 py-2 border border-[#333] text-xs font-bold uppercase tracking-wider bg-[#111] hover:bg-[#181818] text-white transition-colors flex items-center gap-1.5 disabled:opacity-40"
+            className="min-h-[44px] flex-1 sm:flex-initial px-3 sm:px-4 py-2 border border-[#333] text-xs font-bold uppercase tracking-wider bg-[#111] hover:bg-[#181818] text-white transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 active:scale-95"
           >
             <Download className="w-3.5 h-3.5 text-[#888]" />
             Export CSV
           </button>
           <button 
+            type="button"
             onClick={() => setIsAddingVariant(true)}
             disabled={products.length === 0}
-            className="px-4 py-2 bg-[#D4AF37] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider hover:bg-[#B3932F] transition-colors flex items-center gap-1.5 disabled:opacity-40"
+            className="min-h-[44px] flex-1 sm:flex-initial px-3 sm:px-4 py-2 bg-[#D4AF37] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider hover:bg-[#B3932F] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 active:scale-95"
           >
             <Plus className="w-3.5 h-3.5" />
-            Add Variant Track
+            Add Variant
           </button>
         </div>
       </div>
 
       {/* SUMMARY BENTO METRICS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-[#111] border border-[#1F1F1F] p-5">
-          <h3 className="text-[10px] font-bold uppercase tracking-wider text-[#888] mb-1">Tracked Variants</h3>
-          <p className="text-3xl font-light text-white">{totalVariants}</p>
-          <p className="text-[11px] text-[#666] font-mono mt-1">{totalUnits} total units in stock</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <div className="bg-[#111] border border-[#1F1F1F] p-3 sm:p-5">
+          <h3 className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[#888] mb-1">Tracked</h3>
+          <p className="text-2xl sm:text-3xl font-light text-white font-mono">{totalVariants}</p>
+          <p className="text-[10px] sm:text-[11px] text-[#666] font-mono mt-0.5 sm:mt-1">{totalUnits} units</p>
         </div>
 
-        <div className="bg-[#111] border border-amber-900/30 p-5 bg-gradient-to-br from-[#111] to-[#1a150c]">
-          <h3 className="text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Low Stock Warning</h3>
-          <p className="text-3xl font-light text-amber-400">{lowStockCount}</p>
-          <p className="text-[11px] text-amber-400/70 font-mono mt-1">Below threshold (needs restock)</p>
+        <div className="bg-[#111] border border-amber-900/30 p-3 sm:p-5 bg-gradient-to-br from-[#111] to-[#1a150c]">
+          <h3 className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Low Stock</h3>
+          <p className="text-2xl sm:text-3xl font-light text-amber-400 font-mono">{lowStockCount}</p>
+          <p className="text-[10px] sm:text-[11px] text-amber-400/70 font-mono mt-0.5 sm:mt-1">Needs restock</p>
         </div>
 
-        <div className="bg-[#111] border border-red-900/30 p-5 bg-gradient-to-br from-[#111] to-[#1a0f0f]">
-          <h3 className="text-[10px] font-bold uppercase tracking-wider text-red-400 mb-1">Out of Stock</h3>
-          <p className="text-3xl font-light text-red-400">{outOfStockCount}</p>
-          <p className="text-[11px] text-red-400/70 font-mono mt-1">0 units remaining in warehouse</p>
+        <div className="bg-[#111] border border-red-900/30 p-3 sm:p-5 bg-gradient-to-br from-[#111] to-[#1a0f0f]">
+          <h3 className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-red-400 mb-1">Out of Stock</h3>
+          <p className="text-2xl sm:text-3xl font-light text-red-400 font-mono">{outOfStockCount}</p>
+          <p className="text-[10px] sm:text-[11px] text-red-400/70 font-mono mt-0.5 sm:mt-1">0 units left</p>
         </div>
 
-        <div className="bg-[#111] border border-[#1F1F1F] p-5">
-          <h3 className="text-[10px] font-bold uppercase tracking-wider text-[#888] mb-1">Automatic Threshold</h3>
-          <p className="text-3xl font-light text-white">5 units</p>
-          <p className="text-[11px] text-[#666] font-mono mt-1">Default reorder trigger</p>
+        <div className="bg-[#111] border border-[#1F1F1F] p-3 sm:p-5">
+          <h3 className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[#888] mb-1">Threshold</h3>
+          <p className="text-2xl sm:text-3xl font-light text-white font-mono">5 units</p>
+          <p className="text-[10px] sm:text-[11px] text-[#666] font-mono mt-0.5 sm:mt-1">Reorder trigger</p>
         </div>
       </div>
 
       {/* INVENTORY TABLE */}
       <div className="bg-[#111] border border-[#1F1F1F] shadow-sm">
-        <div className="p-4 border-b border-[#1F1F1F] flex flex-col md:flex-row gap-4 justify-between items-center bg-[#151515]">
+        <div className="p-3 sm:p-4 border-b border-[#1F1F1F] flex flex-col md:flex-row gap-3 sm:gap-4 justify-between items-center bg-[#151515]">
           <div className="relative w-full md:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#555]" />
             <input 
@@ -451,15 +455,15 @@ export default function InventoryPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search SKU variant, product, color, size..."
-              className="w-full pl-10 pr-4 py-2 text-xs bg-[#0A0A0A] text-white border border-[#333] focus:outline-none focus:border-[#D4AF37] placeholder-[#555] font-mono"
+              className="w-full min-h-[44px] pl-10 pr-4 py-2 text-base md:text-xs bg-[#0A0A0A] text-white border border-[#333] focus:outline-none focus:border-[#D4AF37] placeholder-[#555] font-mono rounded-none"
             />
           </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto">
             <select 
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-1.5 bg-[#0A0A0A] border border-[#333] text-xs text-white uppercase tracking-wider focus:outline-none focus:border-[#D4AF37] font-mono"
+              className="w-full sm:w-auto min-h-[44px] px-3 py-2 bg-[#0A0A0A] border border-[#333] text-base md:text-xs text-white uppercase tracking-wider focus:outline-none focus:border-[#D4AF37] font-mono rounded-none"
             >
               <option value="all">All Availability States</option>
               <option value="in_stock">In Stock Only</option>
@@ -513,14 +517,15 @@ export default function InventoryPage() {
                   </div>
 
                   {/* Quick delta stepper */}
-                  <div className="flex items-center justify-between bg-[#161616] p-2 rounded-xs border border-[#222]">
+                  <div className="flex items-center justify-between bg-[#161616] p-2 sm:p-2.5 rounded-xs border border-[#222]">
                     <span className="text-[10px] font-mono uppercase text-[#888]">Quick Delta:</span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
                         disabled={isRowSaving || item.quantity <= 0 || !isOnline}
                         onClick={() => handleQuickDelta(item, -1)}
-                        className="min-w-[32px] min-h-[32px] bg-[#222] hover:bg-[#2A2A2A] border border-[#333] text-[#AAA] rounded text-xs font-mono disabled:opacity-30 flex items-center justify-center disabled:cursor-not-allowed"
+                        className="min-w-[44px] min-h-[44px] bg-[#222] hover:bg-[#2A2A2A] active:scale-95 border border-[#333] text-[#AAA] rounded text-xs font-mono disabled:opacity-30 flex items-center justify-center disabled:cursor-not-allowed"
+                        aria-label="Decrease stock by 1"
                       >
                         -1
                       </button>
@@ -528,7 +533,8 @@ export default function InventoryPage() {
                         type="button"
                         disabled={isRowSaving || !isOnline}
                         onClick={() => handleQuickDelta(item, 1)}
-                        className="min-w-[32px] min-h-[32px] bg-[#222] hover:bg-[#2A2A2A] border border-[#333] text-[#AAA] rounded text-xs font-mono disabled:opacity-30 flex items-center justify-center disabled:cursor-not-allowed"
+                        className="min-w-[44px] min-h-[44px] bg-[#222] hover:bg-[#2A2A2A] active:scale-95 border border-[#333] text-[#AAA] rounded text-xs font-mono disabled:opacity-30 flex items-center justify-center disabled:cursor-not-allowed"
+                        aria-label="Increase stock by 1"
                       >
                         +1
                       </button>
@@ -536,7 +542,8 @@ export default function InventoryPage() {
                         type="button"
                         disabled={isRowSaving || !isOnline}
                         onClick={() => handleQuickDelta(item, 5)}
-                        className="min-w-[32px] min-h-[32px] bg-[#222] hover:bg-[#2A2A2A] border border-[#333] text-[#D4AF37] rounded text-xs font-mono disabled:opacity-30 flex items-center justify-center disabled:cursor-not-allowed"
+                        className="min-w-[44px] min-h-[44px] bg-[#222] hover:bg-[#2A2A2A] active:scale-95 border border-[#333] text-[#D4AF37] rounded text-xs font-mono disabled:opacity-30 flex items-center justify-center disabled:cursor-not-allowed"
+                        aria-label="Increase stock by 5"
                       >
                         +5
                       </button>
@@ -553,7 +560,7 @@ export default function InventoryPage() {
                         value={item.quantity}
                         onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 0)}
                         disabled={!isOnline}
-                        className="w-full bg-[#0A0A0A] border border-[#333] p-1 text-center font-bold text-white focus:outline-none focus:border-[#D4AF37] disabled:opacity-50"
+                        className="w-full min-h-[44px] bg-[#0A0A0A] border border-[#333] px-2 py-1 text-center text-base md:text-sm font-bold text-white focus:outline-none focus:border-[#D4AF37] disabled:opacity-50"
                       />
                     </div>
 
@@ -565,7 +572,7 @@ export default function InventoryPage() {
                         value={item.lowStockThreshold}
                         onChange={(e) => handleThresholdChange(item.id, parseInt(e.target.value) || 1)}
                         disabled={!isOnline}
-                        className="w-full bg-[#0A0A0A] border border-[#262626] p-1 text-center text-[#888] focus:outline-none focus:border-[#D4AF37] disabled:opacity-50"
+                        className="w-full min-h-[44px] bg-[#0A0A0A] border border-[#262626] px-2 py-1 text-center text-base md:text-sm text-[#888] focus:outline-none focus:border-[#D4AF37] disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -575,7 +582,7 @@ export default function InventoryPage() {
                       type="button"
                       disabled={isRowSaving || !isOnline}
                       onClick={() => handleSaveSingleRow(item)}
-                      className="w-full min-h-[38px] bg-[#1A1A1A] hover:bg-[#252525] border border-[#333] hover:border-[#D4AF37] text-white text-xs font-mono uppercase tracking-wider rounded transition-colors flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="w-full min-h-[44px] bg-[#1A1A1A] hover:bg-[#252525] active:scale-98 border border-[#333] hover:border-[#D4AF37] text-white text-xs font-mono uppercase tracking-wider rounded transition-colors flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {!isOnline ? 'Offline' : isRowSaving ? 'Saving to Supabase...' : 'Save Variant Stock'}
                     </button>

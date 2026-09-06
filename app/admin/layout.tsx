@@ -121,24 +121,33 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
     .toUpperCase();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0A0A0A] text-[#E0E0E0] font-sans antialiased">
-      {/* Mobile Sidebar Overlay */}
+    <div className="flex h-[100dvh] min-h-[100dvh] w-full max-w-full overflow-hidden bg-[#0A0A0A] text-[#E0E0E0] font-sans antialiased">
+      {/* Mobile Sidebar Slide-Out Drawer */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
+        <div className="fixed inset-0 z-50 flex md:hidden" role="dialog" aria-modal="true">
           <div 
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity" 
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity animate-in fade-in duration-200" 
             onClick={() => setIsMobileMenuOpen(false)} 
             aria-hidden="true" 
           />
-          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-[#0F0F0F] h-full shadow-2xl">
-            <div className="absolute top-0 right-0 -mr-12 pt-4">
+          <div className="relative flex-1 flex flex-col max-w-[280px] w-[80vw] bg-[#0F0F0F] h-full shadow-2xl z-10 animate-in slide-in-from-left duration-200 pt-safe pb-safe border-r border-[#1F1F1F]">
+            <div className="h-14 flex items-center justify-between px-4 border-b border-[#1F1F1F] shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 bg-white flex items-center justify-center rounded-xs shadow">
+                  <div className="w-3.5 h-3.5 bg-black rotate-45"></div>
+                </div>
+                <div>
+                  <span className="text-xs font-bold tracking-[0.2em] text-white block leading-none">VERITAS</span>
+                  <span className="text-[8px] tracking-[0.15em] text-[#D4AF37] font-mono uppercase block mt-0.5">ADMIN</span>
+                </div>
+              </div>
               <button
                 type="button"
-                className="ml-1 flex items-center justify-center h-10 w-10 rounded-full text-white hover:bg-white/10 focus:outline-none"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded text-[#888] hover:text-white hover:bg-white/10 focus:outline-none cursor-pointer"
                 onClick={() => setIsMobileMenuOpen(false)}
+                aria-label="Close menu"
               >
-                <span className="sr-only">Close sidebar</span>
-                <X className="h-6 w-6" aria-hidden="true" />
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
             <div className="flex-1 h-0 overflow-y-auto">
@@ -160,42 +169,30 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#0A0A0A]">
         {/* TOP MODE & SECURITY BANNER */}
         {isDevBypass ? (
-          <div className="bg-amber-950/40 border-b border-amber-800/40 px-4 py-1.5 flex items-center justify-between text-xs text-amber-200/90 font-mono shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-900/60 text-amber-200 border border-amber-700/60 uppercase tracking-wider">
+          <div className="bg-amber-950/40 border-b border-amber-800/40 px-3 sm:px-4 py-1.5 flex items-center justify-between text-xs text-amber-200/90 font-mono shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-amber-900/60 text-amber-200 border border-amber-700/60 uppercase tracking-wider shrink-0">
                 <ShieldAlert className="w-3 h-3 text-amber-400" />
-                Development Bypass Active
+                Bypass Active
               </span>
-              <span className="text-[11px] text-amber-200/80 hidden sm:inline">
-                Admin authentication is currently bypassed for testing (<code className="text-white bg-black/40 px-1 py-0.2 rounded font-mono">ADMIN_AUTH_BYPASS=true</code>).
+              <span className="text-[10px] sm:text-[11px] text-amber-200/80 truncate">
+                Dev test mode
               </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => toggleDevBypass(false)}
-                className="text-[10px] uppercase font-bold text-amber-300 hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
-                title="Test strict login requirement"
-              >
-                Simulate Production Lock
-              </button>
-              <div className="text-[10px] font-mono text-[#888] uppercase tracking-wider hidden md:block">
-                RBAC ACTIVE: {role.toUpperCase()}
-              </div>
             </div>
           </div>
         ) : (
-          <div className="bg-[#0B1510] border-b border-emerald-900/40 px-4 py-1.5 flex items-center justify-between text-xs text-emerald-300/90 font-mono shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 uppercase tracking-wider">
+          <div className="bg-[#0B1510] border-b border-emerald-900/40 px-3 sm:px-4 py-1.5 flex items-center justify-between text-xs text-emerald-300/90 font-mono shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 uppercase tracking-wider shrink-0">
                 <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                Production Security Active
+                Security Active
               </span>
-              <span className="text-[11px] text-emerald-200/80 hidden sm:inline">
-                Authenticated session via Supabase Auth. Route authorization strictly verified.
+              <span className="text-[10px] sm:text-[11px] text-emerald-200/80 truncate">
+                Supabase Auth + RLS
               </span>
             </div>
-            <div className="text-[10px] font-mono text-emerald-400/70 uppercase tracking-wider hidden md:block">
-              ROLE: {role.toUpperCase()} • RLS ENFORCED
+            <div className="text-[10px] font-mono text-emerald-400/70 uppercase tracking-wider hidden md:block shrink-0">
+              ROLE: {role.toUpperCase()}
             </div>
           </div>
         )}
@@ -208,24 +205,28 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
         <PWAUpdateBanner />
 
         {/* ADMIN TOP HEADER */}
-        <header className="relative bg-[#0F0F0F] border-b border-[#1F1F1F] h-16 flex items-center justify-between px-4 md:px-6 shrink-0 z-10">
-          <div className="flex items-center gap-3">
+        <header className="relative bg-[#0F0F0F] border-b border-[#1F1F1F] h-14 md:h-16 flex items-center justify-between px-3 sm:px-4 md:px-6 shrink-0 z-10 pt-safe">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button 
-              className="text-[#888] hover:text-white focus:outline-none md:hidden p-1.5 rounded hover:bg-[#1A1A1A]"
+              type="button"
+              className="text-[#888] hover:text-white focus:outline-none md:hidden min-w-[44px] min-h-[44px] flex items-center justify-center rounded hover:bg-[#1A1A1A] active:bg-[#222] cursor-pointer"
               onClick={() => setIsMobileMenuOpen(true)}
+              aria-label="Open navigation menu"
             >
-              <span className="sr-only">Open sidebar</span>
               <Menu className="h-5 w-5" aria-hidden="true" />
             </button>
             
-            <div className="flex items-center gap-2">
-              <span className="text-white font-bold tracking-widest text-sm uppercase hidden sm:inline md:hidden">VERITAS ADMIN</span>
-              <span className="text-[#444] mx-1 hidden sm:inline md:hidden">/</span>
-              <span className="text-[#D4AF37] font-mono text-xs uppercase tracking-wider font-bold">{sectionLabel}</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+              <span className="text-white font-bold tracking-widest text-xs uppercase shrink-0">VERITAS</span>
+              <span className="text-[#555] shrink-0">/</span>
+              <span className="text-[#D4AF37] font-mono text-xs uppercase tracking-wider font-bold truncate max-w-[130px] sm:max-w-[200px] md:max-w-none">
+                {sectionLabel}
+              </span>
             </div>
           </div>
           
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            {/* Desktop Search Field */}
             <div className="bg-[#151515] px-3 py-1.5 rounded border border-[#262626] text-xs text-[#888] w-40 sm:w-56 hidden md:flex items-center gap-2 focus-within:border-[#D4AF37] focus-within:ring-1 focus-within:ring-[#D4AF37]/50 transition-all">
               <Search className="w-3.5 h-3.5 text-[#666]" />
               <input
@@ -238,10 +239,12 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* PWA Header Install Trigger */}
-            <PWAInstallButton variant="header" />
+            <div className="hidden sm:block">
+              <PWAInstallButton variant="header" />
+            </div>
             
             {/* Authenticated Admin Identity Badge */}
-            <div className="flex items-center gap-2 bg-[#141414] border border-[#262626] px-2.5 py-1 rounded-xs">
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-[#141414] border border-[#262626] px-2 sm:px-2.5 py-1 rounded-xs">
               <div className="w-6 h-6 rounded-xs bg-[#222] border border-[#333] flex items-center justify-center text-[10px] font-bold text-[#D4AF37] shrink-0">
                 {role === 'super_admin' ? 'SA' : role === 'admin' ? 'AD' : 'MG'}
               </div>
@@ -253,7 +256,7 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
                   {role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Admin' : 'Manager'}
                 </div>
               </div>
-              <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded uppercase ${
+              <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded uppercase hidden sm:inline ${
                 role === 'super_admin' 
                   ? 'bg-amber-950/60 text-[#D4AF37] border border-[#D4AF37]/40' 
                   : role === 'admin'
@@ -266,9 +269,11 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
 
             {/* Logout Button */}
             <button
+              type="button"
               onClick={() => { void signOut(); }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#181818] hover:bg-red-950/40 border border-[#2B2B2B] hover:border-red-800/60 text-[#888] hover:text-red-300 text-xs font-mono uppercase tracking-wider rounded-xs transition-colors cursor-pointer"
+              className="min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-[#181818] hover:bg-red-950/40 border border-[#2B2B2B] hover:border-red-800/60 text-[#888] hover:text-red-300 text-xs font-mono uppercase tracking-wider rounded-xs transition-colors cursor-pointer"
               title="Sign out of Admin"
+              aria-label="Logout"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline text-[11px]">Logout</span>
@@ -277,8 +282,8 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* MAIN CONTENT CANVAS */}
-        <main className="flex-1 overflow-y-auto focus:outline-none bg-[#0A0A0A] relative z-0">
-          <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto pb-20 md:pb-8">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden focus:outline-none bg-[#0A0A0A] relative z-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="p-3 sm:p-5 lg:p-8 max-w-[1600px] mx-auto pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-8 w-full min-w-0">
             {hasRouteAccess ? children : (
               <AdminAccessDenied sectionName={sectionLabel} requiredRole={requiredRole} />
             )}

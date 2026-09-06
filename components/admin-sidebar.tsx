@@ -143,11 +143,13 @@ export function AdminSidebar({ currentPath, onNavigate }: { currentPath: string;
           </div>
 
           <button
+            type="button"
             onClick={() => { void signOut(); }}
-            className="p-1.5 hover:bg-[#222] rounded text-[#666] hover:text-red-400 transition-colors shrink-0"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#222] rounded text-[#666] hover:text-red-400 transition-colors shrink-0 cursor-pointer"
             title="Sign Out"
+            aria-label="Sign Out"
           >
-            <LogOut className="w-3.5 h-3.5" />
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </div>

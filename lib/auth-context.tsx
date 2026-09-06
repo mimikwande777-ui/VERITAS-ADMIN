@@ -31,51 +31,20 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AdminUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Development bypass flag evaluation
-  // Production behavior strictly defaults to authentication enabled
-  const envBypassDefault = (
-    process.env.ADMIN_AUTH_BYPASS === 'true'
-  ) && process.env.NODE_ENV !== 'production';
-
-  const [isDevBypass, setIsDevBypass] = useState<boolean>(() => {
-    if (process.env.NODE_ENV === 'production') return false;
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('veritas_admin_dev_bypass');
-      if (stored !== null) return stored === 'true' && envBypassDefault;
-    }
-    return envBypassDefault;
-  });
-
-  const toggleDevBypass = useCallback((enabled: boolean) => {
-    if (process.env.NODE_ENV === 'production' && !envBypassDefault) {
-      console.warn('Development bypass is restricted in production.');
-      return;
-    }
-    setIsDevBypass(enabled);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('veritas_admin_dev_bypass', String(enabled));
-      if (enabled) {
-        document.cookie = 'veritas_admin_session=bypass; path=/; max-age=86400; SameSite=Lax';
-        setUser(CURRENT_DEV_ADMIN);
-      } else {
-        document.cookie = 'veritas_admin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-        setUser(null);
-      }
-    }
-  }, [envBypassDefault]);
+  // Development bypass is strictly disabled
+  const isDevBypass = false;
+  const toggleDevBypass = useCallback((_enabled: boolean) => {
+    console.warn('Development bypass is disabled. Authenticated Supabase session required.');
+  }, []);
 
   // Initialize and listen to Supabase Auth state
   useEffect(() => {
     let mounted = true;
     const client = getSupabaseClient();
 
-    const resolveAdminFromSession = async (sessionUser: any): Promise<AdminUser> => {
+    const resolveAdminFromSession = async (sessionUser: any): Promise<AdminUser | null> => {
       const email = sessionUser.email || '';
-      let role = normalizeAdminRole(
-        sessionUser.user_metadata?.role || 
-        sessionUser.app_metadata?.role || 
-        (email === 'mimikwande777@gmail.com' ? 'super_admin' : 'manager')
-      );
+      let role: CanonicalAdminRole | null = null;
 
       // Verify authoritative role from public.admin_users if table exists
       if (client) {
@@ -88,12 +57,25 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
 
           if (adminRecord?.role) {
             role = normalizeAdminRole(adminRecord.role);
+          } else {
+            const { data: adminEmailRecord } = await client
+              .from('admin_users')
+              .select('role')
+              .eq('email', email.trim().toLowerCase())
+              .maybeSingle();
+            if (adminEmailRecord?.role) {
+              role = normalizeAdminRole(adminEmailRecord.role);
+            }
           }
         } catch (dbErr) {
           console.warn('Could not query admin_users table for authoritative role:', dbErr);
         }
       }
-      
+
+      if (!role) {
+        return null;
+      }
+            
       const name = sessionUser.user_metadata?.full_name || 
                    sessionUser.user_metadata?.name || 
                    email.split('@')[0].toUpperCase();
@@ -119,10 +101,16 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
 
         if (session?.user) {
           const adminUser = await resolveAdminFromSession(session.user);
-          if (mounted) {
-            setUser(adminUser);
-            // Ensure cookie is synchronized for middleware
-            document.cookie = 'veritas_admin_session=active; path=/; max-age=604800; SameSite=Lax';
+          if (adminUser) {
+            if (mounted) {
+              setUser(adminUser);
+              // Ensure cookie is synchronized for middleware
+              document.cookie = 'veritas_admin_session=active; path=/; max-age=604800; SameSite=Lax';
+            }
+          } else {
+            await client.auth.signOut();
+            if (mounted) setUser(null);
+            document.cookie = 'veritas_admin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
           }
         } else if (isDevBypass) {
           // Dev bypass fallback
@@ -146,8 +134,14 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       const { data: { subscription } } = client.auth.onAuthStateChange(async (event, session) => {
         if (session?.user) {
           const adminUser = await resolveAdminFromSession(session.user);
-          setUser(adminUser);
-          document.cookie = 'veritas_admin_session=active; path=/; max-age=604800; SameSite=Lax';
+          if (adminUser) {
+            setUser(adminUser);
+            document.cookie = 'veritas_admin_session=active; path=/; max-age=604800; SameSite=Lax';
+          } else {
+            await client.auth.signOut();
+            setUser(null);
+            document.cookie = 'veritas_admin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+          }
         } else {
           if (isDevBypass) {
             setUser(CURRENT_DEV_ADMIN);
@@ -195,11 +189,8 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.session?.user) {
-        let role = normalizeAdminRole(
-          data.session.user.user_metadata?.role || 
-          data.session.user.app_metadata?.role || 
-          (data.session.user.email === 'mimikwande777@gmail.com' ? 'super_admin' : 'manager')
-        );
+        let role: CanonicalAdminRole | null = null;
+        const emailAddress = data.session.user.email || email;
 
         try {
           const { data: adminRecord } = await client
@@ -210,9 +201,24 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
 
           if (adminRecord?.role) {
             role = normalizeAdminRole(adminRecord.role);
+          } else {
+            const { data: adminEmailRecord } = await client
+              .from('admin_users')
+              .select('role')
+              .eq('email', emailAddress.trim().toLowerCase())
+              .maybeSingle();
+            if (adminEmailRecord?.role) {
+              role = normalizeAdminRole(adminEmailRecord.role);
+            }
           }
         } catch (dbErr) {
           console.warn('Could not query admin_users table for authoritative role:', dbErr);
+        }
+
+        if (!role) {
+          await client.auth.signOut();
+          setIsLoading(false);
+          return { success: false, error: 'Unauthorized: User does not exist in public.admin_users.' };
         }
 
         const name = data.session.user.user_metadata?.full_name || email.split('@')[0].toUpperCase();
@@ -274,12 +280,11 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       console.error('SignOut error:', err);
     } finally {
       setUser(null);
-      // Clear bypass and session cookie
+      // Clear session cookie
       if (typeof window !== 'undefined') {
         localStorage.removeItem('veritas_admin_dev_bypass');
         document.cookie = 'veritas_admin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
       }
-      setIsDevBypass(false);
       setIsLoading(false);
       if (typeof window !== 'undefined') {
         window.location.href = '/admin/login';

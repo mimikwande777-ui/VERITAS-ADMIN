@@ -77,31 +77,33 @@ export default function AdminInstallPage() {
         </div>
 
         {/* Action Button */}
-        <div>
+        <div className="w-full sm:w-auto">
           {isStandalone || isInstalled ? (
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-950/40 border border-emerald-700/50 text-emerald-300 text-xs font-mono font-bold uppercase tracking-wider rounded-xs">
+            <div className="flex items-center justify-center gap-2 min-h-[44px] px-4 py-2 bg-emerald-950/40 border border-emerald-700/50 text-emerald-300 text-xs font-mono font-bold uppercase tracking-wider rounded-xs">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               <span>Installed (Standalone)</span>
             </div>
           ) : isInstallable ? (
             <button
+              type="button"
               onClick={handleInstallClick}
               disabled={installing}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#D4AF37] hover:bg-[#B3932F] text-black text-xs font-mono font-bold uppercase tracking-wider rounded-xs transition-all shadow-lg cursor-pointer"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 min-h-[44px] px-5 py-2.5 bg-[#D4AF37] hover:bg-[#B3932F] text-black text-xs font-mono font-bold uppercase tracking-wider rounded-xs transition-all shadow-lg active:scale-95 cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>{installing ? 'Installing...' : 'Install VERITAS Admin'}</span>
             </button>
           ) : isIOS || platform === 'ios' ? (
             <button
+              type="button"
               onClick={() => setShowIOSModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#181818] hover:bg-[#222] border border-[#D4AF37] text-[#D4AF37] text-xs font-mono font-bold uppercase tracking-wider rounded-xs transition-colors cursor-pointer"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 min-h-[44px] px-5 py-2.5 bg-[#181818] hover:bg-[#222] border border-[#D4AF37] text-[#D4AF37] text-xs font-mono font-bold uppercase tracking-wider rounded-xs transition-colors active:scale-95 cursor-pointer"
             >
               <Smartphone className="w-4 h-4" />
               <span>iOS Install Instructions</span>
             </button>
           ) : (
-            <div className="text-[11px] font-mono text-[#888] bg-[#141414] border border-[#222] px-3 py-2 rounded-xs">
+            <div className="text-[11px] font-mono text-[#888] bg-[#141414] border border-[#222] px-3 py-2.5 min-h-[44px] flex items-center justify-center rounded-xs">
               Install via browser menu (Chrome / Edge / Safari)
             </div>
           )}
@@ -170,8 +172,9 @@ export default function AdminInstallPage() {
           </div>
 
           <button
+            type="button"
             onClick={() => setShowIOSModal(true)}
-            className="mt-6 w-full py-2 bg-[#1A1A1A] hover:bg-[#222] border border-[#333] text-xs font-mono uppercase font-bold text-[#DDD] transition-colors rounded-xs"
+            className="mt-6 w-full min-h-[44px] py-2.5 px-4 bg-[#1A1A1A] hover:bg-[#222] border border-[#333] text-xs font-mono uppercase font-bold text-[#DDD] transition-colors rounded-xs active:scale-98 flex items-center justify-center"
           >
             Show Visual Guide
           </button>
@@ -215,13 +218,14 @@ export default function AdminInstallPage() {
 
           {isInstallable ? (
             <button
+              type="button"
               onClick={handleInstallClick}
-              className="mt-6 w-full py-2 bg-[#D4AF37] hover:bg-[#B3932F] text-black text-xs font-mono uppercase font-bold transition-colors rounded-xs"
+              className="mt-6 w-full min-h-[44px] py-2.5 px-4 bg-[#D4AF37] hover:bg-[#B3932F] text-black text-xs font-mono uppercase font-bold transition-colors rounded-xs active:scale-98 flex items-center justify-center"
             >
               Install on Android
             </button>
           ) : (
-            <div className="mt-6 text-center text-[10px] font-mono text-[#666]">
+            <div className="mt-6 text-center text-[10px] font-mono text-[#666] min-h-[44px] flex items-center justify-center">
               Available via Chrome Menu
             </div>
           )}
@@ -265,13 +269,14 @@ export default function AdminInstallPage() {
 
           {isInstallable ? (
             <button
+              type="button"
               onClick={handleInstallClick}
-              className="mt-6 w-full py-2 bg-[#D4AF37] hover:bg-[#B3932F] text-black text-xs font-mono uppercase font-bold transition-colors rounded-xs"
+              className="mt-6 w-full min-h-[44px] py-2.5 px-4 bg-[#D4AF37] hover:bg-[#B3932F] text-black text-xs font-mono uppercase font-bold transition-colors rounded-xs active:scale-98 flex items-center justify-center"
             >
               Install on Desktop
             </button>
           ) : (
-            <div className="mt-6 text-center text-[10px] font-mono text-[#666]">
+            <div className="mt-6 text-center text-[10px] font-mono text-[#666] min-h-[44px] flex items-center justify-center">
               Available via Address Bar / Menu
             </div>
           )}

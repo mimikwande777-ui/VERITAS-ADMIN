@@ -159,17 +159,17 @@ export default function ProductsPage() {
       )}
 
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Product Catalog</h1>
-          <p className="text-xs text-[#888] font-mono mt-1">
-            CENTRAL SOURCE OF TRUTH • ZAR CURRENCY • PRODUCT DATA ARCHITECTURE
+          <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-widest text-white">Product Catalog</h1>
+          <p className="text-[11px] sm:text-xs text-[#888] font-mono mt-0.5 sm:mt-1">
+            CENTRAL SOURCE OF TRUTH • ZAR CURRENCY • PRODUCT DATA
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="w-full sm:w-auto">
           <Link 
             href="/admin/products/new"
-            className="inline-flex items-center justify-center px-5 py-2.5 bg-[#D4AF37] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider hover:bg-[#B3932F] transition-colors shadow-lg shadow-[#D4AF37]/10"
+            className="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center px-5 py-2.5 bg-[#D4AF37] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider hover:bg-[#B3932F] transition-colors shadow-lg shadow-[#D4AF37]/10 active:scale-98"
           >
             <Plus className="w-4 h-4 mr-1.5" />
             Add New Product
@@ -178,20 +178,20 @@ export default function ProductsPage() {
       </div>
 
       {/* STATUS TABS */}
-      <div className="flex items-center gap-1 border-b border-[#1F1F1F] pb-2">
+      <div className="flex items-center gap-1 border-b border-[#1F1F1F] pb-2 overflow-x-auto no-scrollbar whitespace-nowrap -mx-4 px-4 sm:mx-0 sm:px-0">
         <button
           onClick={() => setStatusTab('ALL')}
-          className={`px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all border-b-2 ${
+          className={`min-h-[44px] px-3.5 sm:px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all border-b-2 shrink-0 ${
             statusTab === 'ALL'
               ? 'border-[#D4AF37] text-[#D4AF37] bg-[#141414]'
               : 'border-transparent text-[#888] hover:text-white'
           }`}
         >
-          All Products ({countAll})
+          All ({countAll})
         </button>
         <button
           onClick={() => setStatusTab('ACTIVE')}
-          className={`px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all border-b-2 ${
+          className={`min-h-[44px] px-3.5 sm:px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all border-b-2 shrink-0 ${
             statusTab === 'ACTIVE'
               ? 'border-emerald-500 text-emerald-400 bg-[#141414]'
               : 'border-transparent text-[#888] hover:text-white'
@@ -201,7 +201,7 @@ export default function ProductsPage() {
         </button>
         <button
           onClick={() => setStatusTab('DRAFT')}
-          className={`px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all border-b-2 ${
+          className={`min-h-[44px] px-3.5 sm:px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all border-b-2 shrink-0 ${
             statusTab === 'DRAFT'
               ? 'border-amber-500 text-amber-400 bg-[#141414]'
               : 'border-transparent text-[#888] hover:text-white'
@@ -211,7 +211,7 @@ export default function ProductsPage() {
         </button>
         <button
           onClick={() => setStatusTab('ARCHIVED')}
-          className={`px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all border-b-2 ${
+          className={`min-h-[44px] px-3.5 sm:px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all border-b-2 shrink-0 ${
             statusTab === 'ARCHIVED'
               ? 'border-red-500 text-red-400 bg-[#141414]'
               : 'border-transparent text-[#888] hover:text-white'
@@ -223,23 +223,23 @@ export default function ProductsPage() {
 
       {/* FILTER & SEARCH BAR */}
       <div className="bg-[#111] border border-[#1F1F1F] shadow-sm">
-        <div className="p-4 border-b border-[#1F1F1F] flex flex-col md:flex-row gap-4 justify-between items-center bg-[#151515]">
+        <div className="p-3 sm:p-4 border-b border-[#1F1F1F] flex flex-col md:flex-row gap-3 sm:gap-4 justify-between items-center bg-[#151515]">
           <div className="relative w-full md:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#555]" />
             <input 
               type="text" 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by product name, SKU, tag, category..."
-              className="w-full pl-10 pr-4 py-2 text-xs bg-[#0A0A0A] text-white border border-[#333] focus:outline-none focus:border-[#D4AF37] placeholder-[#555] font-mono"
+              placeholder="Search by product name, SKU, tag..."
+              className="w-full min-h-[44px] pl-10 pr-4 py-2 text-base md:text-xs bg-[#0A0A0A] text-white border border-[#333] focus:outline-none focus:border-[#D4AF37] placeholder-[#555] font-mono rounded-none"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
             <select 
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-3 py-1.5 bg-[#0A0A0A] border border-[#333] text-xs text-white uppercase tracking-wider focus:outline-none focus:border-[#D4AF37] font-mono"
+              className="w-full sm:w-auto min-h-[44px] px-3 py-2 bg-[#0A0A0A] border border-[#333] text-base md:text-xs text-white uppercase tracking-wider focus:outline-none focus:border-[#D4AF37] font-mono rounded-none"
             >
               <option value="all">All Categories ({categories.length})</option>
               {categories.map(cat => (
@@ -356,7 +356,7 @@ export default function ProductsPage() {
                   <div className="grid grid-cols-3 gap-2 pt-1 border-t border-[#1C1C1C]">
                     <Link
                       href={`/admin/products/${product.id}`}
-                      className="min-h-[40px] px-2 py-1.5 bg-[#181818] hover:bg-[#222] border border-[#333] rounded text-center text-xs font-mono uppercase text-white flex items-center justify-center gap-1"
+                      className="min-h-[44px] px-2 py-1.5 bg-[#181818] hover:bg-[#222] border border-[#333] rounded text-center text-xs font-mono uppercase text-white flex items-center justify-center gap-1 active:scale-95"
                     >
                       <Eye className="w-3.5 h-3.5 text-[#888]" />
                       <span>Overview</span>
@@ -364,15 +364,16 @@ export default function ProductsPage() {
 
                     <Link
                       href={`/admin/products/${product.id}/edit`}
-                      className="min-h-[40px] px-2 py-1.5 bg-[#181818] hover:bg-[#222] border border-[#333] hover:border-[#D4AF37] rounded text-center text-xs font-mono uppercase text-[#D4AF37] flex items-center justify-center gap-1"
+                      className="min-h-[44px] px-2 py-1.5 bg-[#181818] hover:bg-[#222] border border-[#333] hover:border-[#D4AF37] rounded text-center text-xs font-mono uppercase text-[#D4AF37] flex items-center justify-center gap-1 active:scale-95"
                     >
                       <Edit className="w-3.5 h-3.5" />
                       <span>Edit</span>
                     </Link>
 
                     <button
+                      type="button"
                       onClick={(e) => handleToggleArchive(product.id, e)}
-                      className="min-h-[40px] px-2 py-1.5 bg-[#181818] hover:bg-[#222] border border-[#333] rounded text-center text-xs font-mono uppercase text-[#AAA] flex items-center justify-center gap-1"
+                      className="min-h-[44px] px-2 py-1.5 bg-[#181818] hover:bg-[#222] border border-[#333] rounded text-center text-xs font-mono uppercase text-[#AAA] flex items-center justify-center gap-1 active:scale-95"
                     >
                       <Archive className="w-3.5 h-3.5 text-[#888]" />
                       <span>{product.status === 'ARCHIVED' ? 'Restore' : 'Archive'}</span>
