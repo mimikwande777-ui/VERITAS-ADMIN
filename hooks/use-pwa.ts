@@ -58,43 +58,61 @@ export function usePWA() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // 5. Register Service Worker on /admin scope
-    if ('serviceWorker' in navigator && window.location.pathname.startsWith('/admin')) {
-      navigator.serviceWorker
-        .register('/sw.js', { scope: '/admin/' })
-        .then((reg) => {
-          setRegistration(reg);
+    // 5. Service Worker Management
+    // In development or preview environments, ensure service workers are unregistered and caches cleared
+    // to prevent webpack chunk collision and stale module caching.
+    const isDev = 
+      process.env.NODE_ENV !== 'production' || 
+      (typeof window !== 'undefined' && (
+        window.location.hostname === 'localhost' ||
+        window.location.hostname.includes('127.0.0.1') ||
+        window.location.hostname.includes('ais-dev-')
+      ));
 
-          // Check for immediate updates
-          if (reg.waiting) {
-            setWaitingWorker(reg.waiting);
-            setIsUpdateAvailable(true);
+    if ('serviceWorker' in navigator) {
+      if (isDev) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const reg of registrations) {
+            reg.unregister();
           }
-
-          reg.addEventListener('updatefound', () => {
-            const newWorker = reg.installing;
-            if (newWorker) {
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  setWaitingWorker(newWorker);
-                  setIsUpdateAvailable(true);
-                }
-              });
+        });
+        if ('caches' in window) {
+          caches.keys().then((keys) => {
+            for (const key of keys) {
+              if (key.startsWith('veritas-admin-')) {
+                caches.delete(key);
+              }
             }
           });
-        })
-        .catch((err) => {
-          console.warn('[PWA] Service worker registration notice:', err);
-        });
-
-      // Handle controllerchange reload if user requested update
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-          refreshing = true;
-          window.location.reload();
         }
-      });
+      } else if (window.location.pathname.startsWith('/admin')) {
+        navigator.serviceWorker
+          .register('/sw.js', { scope: '/admin/' })
+          .then((reg) => {
+            setRegistration(reg);
+
+            // Check for immediate updates
+            if (reg.waiting) {
+              setWaitingWorker(reg.waiting);
+              setIsUpdateAvailable(true);
+            }
+
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    setWaitingWorker(newWorker);
+                    setIsUpdateAvailable(true);
+                  }
+                });
+              }
+            });
+          })
+          .catch((err) => {
+            console.warn('[PWA] Service worker registration notice:', err);
+          });
+      }
     }
 
     return () => {
@@ -126,6 +144,11 @@ export function usePWA() {
 
   const updateServiceWorker = useCallback(() => {
     if (waitingWorker) {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload();
+        }, { once: true });
+      }
       waitingWorker.postMessage({ type: 'SKIP_WAITING' });
     }
   }, [waitingWorker]);

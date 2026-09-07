@@ -2,10 +2,10 @@
 // Conservative, high-integrity offline cache for static assets only.
 // Sensitive APIs, orders, Supabase data, and PayFast are NEVER cached.
 
-const CACHE_VERSION = 'veritas-admin-v1.0.0';
+const CACHE_VERSION = 'veritas-admin-v2.0.0';
 const STATIC_CACHE_NAME = `veritas-admin-static-${CACHE_VERSION}`;
 
-// Pre-cached static immutable shell assets
+// Pre-cached static immutable shell assets (strictly non-code assets)
 const PRECACHE_ASSETS = [
   '/manifest.webmanifest',
   '/icons/icon-192x192.png',
@@ -16,7 +16,7 @@ const PRECACHE_ASSETS = [
   '/favicon.png'
 ];
 
-// Patterns that MUST NEVER be cached under any circumstances
+// Patterns that MUST NEVER be cached or intercepted by the service worker
 const SENSITIVE_URL_PATTERNS = [
   /\/api\/admin\//i,
   /\/api\/orders\//i,
@@ -28,7 +28,8 @@ const SENSITIVE_URL_PATTERNS = [
   /storage\/v1/i,
   /\.rsc$/i,
   /\.json$/i,
-  /_next\/data\//i
+  /_next\//i,
+  /__nextjs/i
 ];
 
 self.addEventListener('install', (event) => {
@@ -92,9 +93,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Static Next.js Bundles, Fonts, and Icons (Cache-First or Stale-While-Revalidate)
+  // 3. Static Icons, Manifest, and Fonts (Cache-First or Stale-While-Revalidate)
   const isStaticAsset = 
-    url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||
     url.pathname === '/apple-touch-icon.png' ||
     url.pathname === '/favicon.png' ||
