@@ -68,206 +68,89 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     setIsUnlockModalOpen(false);
   }, []);
 
-  // Initialize and listen to Supabase Auth state
+  // Initialize session by verifying HttpOnly cookie via server GET /api/admin/unlock
   useEffect(() => {
     let mounted = true;
-    const client = getSupabaseClient();
 
-    const resolveAdminFromSession = async (sessionUser: any): Promise<AdminUser | null> => {
-      const email = (sessionUser.email || '').trim().toLowerCase();
-      let role: CanonicalAdminRole | null = null;
-
-      // Verify authoritative role from public.admin_users
-      if (client) {
-        try {
-          const { data: adminRecord } = await client
-            .from('admin_users')
-            .select('role')
-            .eq('user_id', sessionUser.id)
-            .maybeSingle();
-
-          if (adminRecord?.role) {
-            role = normalizeAdminRole(adminRecord.role);
-          } else {
-            const { data: adminEmailRecord } = await client
-              .from('admin_users')
-              .select('role')
-              .eq('email', email)
-              .maybeSingle();
-            if (adminEmailRecord?.role) {
-              role = normalizeAdminRole(adminEmailRecord.role);
-            }
-          }
-        } catch (dbErr) {
-          console.warn('Could not query admin_users table for authoritative role:', dbErr);
-        }
-      }
-
-      if (!role) {
-        if (sessionUser.app_metadata?.role) {
-          role = normalizeAdminRole(sessionUser.app_metadata.role);
-        } else if (sessionUser.user_metadata?.role) {
-          role = normalizeAdminRole(sessionUser.user_metadata.role);
-        } else if (email === 'othembela28@gmail.com' || email === 'mimikwande777@gmail.com') {
-          role = 'super_admin';
-        }
-      }
-
-      if (!role) {
-        return null;
-      }
-            
-      const name = sessionUser.user_metadata?.full_name || 
-                   sessionUser.user_metadata?.name || 
-                   email.split('@')[0].toUpperCase();
-
-      return {
-        id: sessionUser.id,
-        name,
-        email: sessionUser.email || email,
-        role,
-        createdAt: sessionUser.created_at || new Date().toISOString(),
-        lastActive: 'Just now',
-      };
-    };
-
-    const initAuth = async () => {
+    const checkServerSession = async () => {
       try {
-        if (!client) {
-          if (mounted) {
-            setUser(null);
-            setIsLoading(false);
-          }
-          return;
-        }
+        const res = await fetch('/api/admin/unlock', {
+          method: 'GET',
+          headers: { 'Cache-Control': 'no-cache' },
+        });
 
-        const { data: { session } } = await client.auth.getSession();
-
-        if (session?.user) {
-          const adminUser = await resolveAdminFromSession(session.user);
-          if (adminUser) {
+        if (res.ok) {
+          const data = await res.json();
+          if (data.authenticated && data.user) {
+            const role = normalizeAdminRole(data.user.role || 'admin');
+            const adminUser: AdminUser = {
+              id: data.user.id,
+              name: data.user.name || data.user.email?.split('@')[0].toUpperCase(),
+              email: data.user.email,
+              role,
+              createdAt: new Date().toISOString(),
+              lastActive: 'Just now',
+            };
             if (mounted) setUser(adminUser);
           } else {
-            // User exists in auth but not in admin_users table
             if (mounted) setUser(null);
           }
         } else {
           if (mounted) setUser(null);
         }
       } catch (err) {
-        console.error('Error initializing Supabase Auth:', err);
         if (mounted) setUser(null);
       } finally {
         if (mounted) setIsLoading(false);
       }
     };
 
-    void initAuth();
+    void checkServerSession();
 
-    if (client) {
-      const { data: { subscription } } = client.auth.onAuthStateChange(async (event, session) => {
-        if (session?.user) {
-          const adminUser = await resolveAdminFromSession(session.user);
-          if (adminUser) {
-            setUser(adminUser);
-          } else {
-            setUser(null);
-          }
-        } else {
-          setUser(null);
-        }
-        setIsLoading(false);
-      });
+    const handleAuthChange = () => {
+      void checkServerSession();
+    };
 
-      return () => {
-        mounted = false;
-        subscription.unsubscribe();
-      };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('veritas_admin_auth_changed', handleAuthChange);
     }
 
     return () => {
       mounted = false;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('veritas_admin_auth_changed', handleAuthChange);
+      }
     };
   }, []);
 
   const signIn = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
-    const client = getSupabaseClient();
-    
-    if (!client) {
-      setIsLoading(false);
-      return { 
-        success: false, 
-        error: 'Supabase authentication is not configured. Please define NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.' 
-      };
-    }
 
     try {
-      const { data, error } = await client.auth.signInWithPassword({
-        email: email.trim(),
-        password,
+      const res = await fetch('/api/admin/unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
       });
 
-      if (error) {
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
         setIsLoading(false);
-        return { success: false, error: error.message || 'Invalid administrator credentials' };
+        return {
+          success: false,
+          error: data.error || 'Invalid administrator credentials.',
+        };
       }
 
-      if (data.session?.user) {
-        let role: CanonicalAdminRole | null = null;
-        const emailAddress = (data.session.user.email || email).trim().toLowerCase();
-
-        try {
-          const { data: adminRecord } = await client
-            .from('admin_users')
-            .select('role')
-            .eq('user_id', data.session.user.id)
-            .maybeSingle();
-
-          if (adminRecord?.role) {
-            role = normalizeAdminRole(adminRecord.role);
-          } else {
-            const { data: adminEmailRecord } = await client
-              .from('admin_users')
-              .select('role')
-              .eq('email', emailAddress)
-              .maybeSingle();
-            if (adminEmailRecord?.role) {
-              role = normalizeAdminRole(adminEmailRecord.role);
-            }
-          }
-        } catch (dbErr) {
-          console.warn('Could not query admin_users table for authoritative role:', dbErr);
-        }
-
-        if (!role) {
-          if (data.session.user.app_metadata?.role) {
-            role = normalizeAdminRole(data.session.user.app_metadata.role);
-          } else if (data.session.user.user_metadata?.role) {
-            role = normalizeAdminRole(data.session.user.user_metadata.role);
-          } else if (emailAddress === 'othembela28@gmail.com' || emailAddress === 'mimikwande777@gmail.com') {
-            role = 'super_admin';
-          }
-        }
-
-        if (!role) {
-          await client.auth.signOut();
-          setUser(null);
-          setIsLoading(false);
-          return { 
-            success: false, 
-            error: 'Forbidden: Authenticated user is not registered in public.admin_users.' 
-          };
-        }
-
-        const name = data.session.user.user_metadata?.full_name || email.split('@')[0].toUpperCase();
-
+      if (data.user) {
+        const role = normalizeAdminRole(data.user.role || 'admin');
         const adminUser: AdminUser = {
-          id: data.session.user.id,
-          name,
-          email: data.session.user.email || email,
+          id: data.user.id,
+          name: data.user.name,
+          email: data.user.email,
           role,
-          createdAt: data.session.user.created_at || new Date().toISOString(),
+          createdAt: data.user.createdAt || new Date().toISOString(),
           lastActive: 'Just now',
         };
 
@@ -277,10 +160,10 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         // Record live audit log
         void recordAuditLog({
           action: 'auth.login',
-          actionLabel: `Admin signed in: ${email} (${role.toUpperCase()})`,
+          actionLabel: `Admin signed in via server unlock: ${adminUser.email} (${role.toUpperCase()})`,
           targetType: 'auth',
           targetId: adminUser.id,
-          actorEmail: email,
+          actorEmail: adminUser.email,
           actorRole: role,
         });
 
@@ -296,13 +179,12 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: 'Failed to establish valid session.' };
     } catch (err: any) {
       setIsLoading(false);
-      return { success: false, error: err?.message || 'Authentication failed' };
+      return { success: false, error: err?.message || 'Authentication request failed.' };
     }
   }, []);
 
   const signOut = useCallback(async () => {
     setIsLoading(true);
-    const client = getSupabaseClient();
     const currentUserEmail = user?.email || 'admin@veritas.internal';
     const currentUserRole = user?.role || 'super_admin';
 
@@ -316,9 +198,9 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     try {
-      if (client) {
-        await client.auth.signOut();
-      }
+      await fetch('/api/admin/lock', {
+        method: 'POST',
+      });
     } catch (err) {
       console.error('SignOut error:', err);
     } finally {

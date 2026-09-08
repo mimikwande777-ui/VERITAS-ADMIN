@@ -1,17 +1,16 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { isSupabaseConfigured, getSupabaseEnvConfig } from './config';
+import { getServerSupabaseConfig } from './config';
 
 /**
- * Server-side Supabase client initializer (Using public anon key or user JWT)
+ * Server-side Supabase client initializer (Using anon key or user JWT)
  */
 export function createServerSupabaseClient(token?: string): SupabaseClient | null {
-  if (!isSupabaseConfigured()) {
+  const { url, anonKey, isConfigured } = getServerSupabaseConfig();
+  if (!isConfigured) {
     return null;
   }
 
-  const { url, key } = getSupabaseEnvConfig();
-
-  return createClient(url, key, {
+  return createClient(url, anonKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -41,12 +40,10 @@ export function createServiceRoleSupabaseClient(): SupabaseClient | null {
     throw new Error('SECURITY VIOLATION: createServiceRoleSupabaseClient was invoked on the client!');
   }
 
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const { url, serviceRoleKey } = getServerSupabaseConfig();
   if (!serviceRoleKey || !serviceRoleKey.trim()) {
     return null;
   }
-
-  const { url } = getSupabaseEnvConfig();
 
   return createClient(url, serviceRoleKey.trim(), {
     auth: {

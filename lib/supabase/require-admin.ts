@@ -31,11 +31,10 @@ export async function requireAdmin(request: NextRequest): Promise<RequireAdminRe
     token = authHeader.substring(7).trim();
   }
 
-  // Also check standard Supabase auth cookies if present (sb-access-token or sb-<project>-auth-token)
+  // Also check standard Supabase auth cookies if present (sb-access-token, veritas_admin_token, or sb-<project>-auth-token)
   if (!token) {
     const cookies = request.cookies;
-    // Look for common Supabase access token cookie patterns
-    const sbAccessToken = cookies.get('sb-access-token')?.value;
+    const sbAccessToken = cookies.get('sb-access-token')?.value || cookies.get('veritas_admin_token')?.value;
     if (sbAccessToken) {
       token = sbAccessToken;
     } else {
