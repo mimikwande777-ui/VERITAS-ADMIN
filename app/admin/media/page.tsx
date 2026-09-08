@@ -32,6 +32,7 @@ export default function MediaLibraryPage() {
   const [products, setProducts] = useState<SupabaseProductWithDetails[]>([]);
   const [selectedProductFilter, setSelectedProductFilter] = useState('All Media');
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Add Asset / Modal State
@@ -55,6 +56,7 @@ export default function MediaLibraryPage() {
 
   const loadData = async () => {
     setLoading(true);
+    setErrorMsg(null);
     try {
       const [media, prods] = await Promise.all([
         fetchAllMediaFromSupabase(),
@@ -67,7 +69,9 @@ export default function MediaLibraryPage() {
       }
     } catch (err: any) {
       console.error('Failed to load media assets:', err);
-      showToast(`Failed to load media: ${err?.message || 'Unknown error'}`, 'error');
+      const msg = err?.message || 'Failed to load media from Supabase.';
+      setErrorMsg(msg);
+      showToast(`Failed to load media: ${msg}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -193,24 +197,6 @@ export default function MediaLibraryPage() {
         </div>
       )}
 
-      {/* BANNER */}
-      <div className="bg-[#121212] border border-[#262626] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
-        <div className="flex items-center gap-2.5 text-[#D4AF37]">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>
-            <strong className="text-white">SUPABASE STORAGE & CDN:</strong> Assets hosted in bucket <code className="text-[#D4AF37]">product-media</code> & synced with table <code className="text-[#D4AF37]">product_media</code>.
-          </span>
-        </div>
-        <button 
-          onClick={loadData}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1A1A1A] hover:bg-[#262626] text-white rounded border border-[#333] transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin text-[#D4AF37]' : ''}`} />
-          Refresh Supabase
-        </button>
-      </div>
-
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Media Library</h1>
@@ -220,6 +206,14 @@ export default function MediaLibraryPage() {
         </div>
         <div className="flex items-center gap-2">
           <button 
+            onClick={loadData}
+            disabled={loading}
+            className="px-3 py-2 bg-[#1A1A1A] hover:bg-[#262626] text-white text-xs font-mono rounded border border-[#333] transition-colors disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#D4AF37]' : ''}`} />
+            Refresh
+          </button>
+          <button 
             onClick={() => setIsAddingUrl(!isAddingUrl)}
             className="px-4 py-2 border border-[#333] text-xs font-bold font-mono uppercase tracking-wider bg-[#111] hover:bg-[#181818] text-white transition-colors flex items-center gap-1.5"
           >
@@ -228,6 +222,16 @@ export default function MediaLibraryPage() {
           </button>
         </div>
       </div>
+
+      {errorMsg && (
+        <div className="p-4 bg-red-950/20 border border-red-900/40 text-red-400 text-xs font-mono flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+          <div>
+            <p className="font-bold text-sm uppercase text-red-300">Unable to load media assets</p>
+            <p className="text-[#888] mt-0.5">{errorMsg}</p>
+          </div>
+        </div>
+      )}
 
       {isAddingUrl && (
         <form onSubmit={handleAddMediaRecord} className="bg-[#111] border border-[#2B2B2B] p-5 space-y-4 shadow-xl font-mono text-xs">

@@ -49,7 +49,7 @@ export function AdminAccessDenied({
           <div className="flex items-center justify-between border-b border-[#222] pb-2">
             <span className="text-[#666] uppercase text-[10px]">Your Role:</span>
             <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
-              {role.toUpperCase()}
+              {(role || 'unauthorized').toUpperCase()}
             </span>
           </div>
           <div className="flex items-center justify-between">

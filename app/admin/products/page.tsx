@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { mockProducts, ProductItem, ProductStatus } from '@/lib/mock-data';
 import { 
-  useProductsStore,
+  useProductsState,
   persistProducts, 
   publishProduct,
   unpublishProduct,
@@ -44,7 +44,7 @@ import { ImageIcon } from 'lucide-react';
 
 export default function ProductsPage() {
   const router = useRouter();
-  const products = useProductsStore();
+  const { products, loading, error } = useProductsState();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusTab, setStatusTab] = useState<'ALL' | 'ACTIVE' | 'DRAFT' | 'ARCHIVED'>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -252,7 +252,16 @@ export default function ProductsPage() {
         {/* PRODUCTS TABLE */}
         {/* 1. MOBILE RESPONSIVE STACKED CARDS (< md) */}
         <div className="block md:hidden divide-y divide-[#1F1F1F]">
-          {products.length === 0 ? (
+          {loading ? (
+            <div className="p-8 text-center text-xs text-[#888] font-mono">
+              LOADING PRODUCTS...
+            </div>
+          ) : error ? (
+            <div className="p-8 text-center text-xs text-red-400 font-mono bg-red-950/20 space-y-1">
+              <p className="font-bold text-sm uppercase text-red-300">Unable to load products</p>
+              <p className="text-[#888]">{error}</p>
+            </div>
+          ) : products.length === 0 ? (
             <div className="p-8 text-center text-xs text-[#888] font-mono">
               NO PRODUCTS YET
             </div>
@@ -402,7 +411,25 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1F1F1F]">
-              {products.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={9} className="px-6 py-16 text-center text-xs text-[#888] font-mono">
+                    LOADING PRODUCTS CATALOGUE...
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={9} className="px-6 py-16 text-center bg-red-950/20">
+                    <div className="max-w-md mx-auto space-y-3 text-red-400 font-mono">
+                      <AlertTriangle className="w-8 h-8 mx-auto text-red-500" />
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-red-300">Unable to load products</h3>
+                      <p className="text-xs text-[#888] font-mono">
+                        {error}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : products.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-16 text-center">
                     <div className="max-w-md mx-auto space-y-3">

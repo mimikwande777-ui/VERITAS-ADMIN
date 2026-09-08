@@ -3,6 +3,7 @@ import { ProductItem, ProductVariant, ProductMediaImage, ProductColour, Inventor
 import { isSupabaseConfigured } from './supabase/config';
 import { 
   fetchSupabaseProducts, 
+  fetchSupabaseProductsWithStatus,
   fetchSupabaseProductById, 
   fetchSupabaseProductBySlug,
   createSupabaseProduct,
@@ -20,24 +21,36 @@ const EVENT_NAME = 'veritas_products_updated';
 const isBrowser = typeof window !== 'undefined';
 
 /**
- * React hook to safely subscribe to products from Supabase (or Local Sandbox fallback)
+ * React hook to subscribe to products with loading & granular error state
  */
-export function useProductsStore(): ProductItem[] {
+export function useProductsState(): { products: ProductItem[]; loading: boolean; error: string | null } {
   const [products, setProducts] = useState<ProductItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
     const sync = async () => {
+      setLoading(true);
       if (isSupabaseConfigured()) {
-        const supaProducts = await fetchSupabaseProducts();
+        const res = await fetchSupabaseProductsWithStatus();
         if (isMounted) {
-          setProducts(supaProducts || []);
+          if (res.error) {
+            setError(res.error);
+            setProducts([]);
+          } else {
+            setError(null);
+            setProducts(res.products);
+          }
+          setLoading(false);
           return;
         }
       }
       if (isMounted) {
         setProducts(getStoredProducts([]));
+        setError(null);
+        setLoading(false);
       }
     };
 
@@ -51,6 +64,14 @@ export function useProductsStore(): ProductItem[] {
     };
   }, []);
 
+  return { products, loading, error };
+}
+
+/**
+ * React hook to safely subscribe to products from Supabase (or Local Sandbox fallback)
+ */
+export function useProductsStore(): ProductItem[] {
+  const { products } = useProductsState();
   return products;
 }
 

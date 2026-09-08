@@ -220,12 +220,41 @@ export function mapDbProductToProductItem(raw: any): ProductItem {
   };
 }
 
+export type SupabaseStatus = 
+  | 'SUCCESS_WITH_DATA'
+  | 'SUCCESS_WITH_ZERO_ROWS'
+  | 'CONFIGURATION_ERROR'
+  | 'NETWORK_ERROR'
+  | 'RLS_ERROR'
+  | 'QUERY_ERROR';
+
+export interface ProductsQueryResult {
+  status: SupabaseStatus;
+  products: ProductItem[];
+  count: number;
+  error: string | null;
+}
+
 /**
- * Fetch all products directly from Supabase
+ * Fetch all products directly from Supabase with granular error classification
+ * Strictly distinguishes:
+ * - SUCCESS WITH DATA
+ * - SUCCESS WITH ZERO ROWS
+ * - CONFIGURATION ERROR
+ * - NETWORK ERROR
+ * - RLS/PERMISSION ERROR
+ * - QUERY ERROR
  */
-export async function fetchSupabaseProducts(): Promise<ProductItem[] | null> {
+export async function fetchSupabaseProductsWithStatus(): Promise<ProductsQueryResult> {
   const client = getSupabaseClient();
-  if (!client) return null;
+  if (!client) {
+    return {
+      status: 'CONFIGURATION_ERROR',
+      products: [],
+      count: 0,
+      error: 'CONFIGURATION ERROR: Supabase client is not configured (missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY).'
+    };
+  }
 
   try {
     const { data, error } = await client
@@ -240,16 +269,45 @@ export async function fetchSupabaseProducts(): Promise<ProductItem[] | null> {
       `)
       .order('created_at', { ascending: false });
 
-    if (error || !data) {
-      console.warn('Supabase fetchProducts warning:', error);
-      return null;
+    if (error) {
+      const isRLS = error.code === '42501' || error.message?.toLowerCase().includes('permission') || error.message?.toLowerCase().includes('policy');
+      const status: SupabaseStatus = isRLS ? 'RLS_ERROR' : 'QUERY_ERROR';
+      const prefix = isRLS ? 'RLS / PERMISSION ERROR' : 'QUERY ERROR';
+      return {
+        status,
+        products: [],
+        count: 0,
+        error: `${prefix}: ${error.message} (code: ${error.code || 'unknown'})`
+      };
     }
 
-    return data.map(mapDbProductToProductItem);
-  } catch (err) {
-    console.error('Supabase fetchProducts error:', err);
-    return null;
+    const products = (data || []).map(mapDbProductToProductItem);
+    return {
+      status: products.length > 0 ? 'SUCCESS_WITH_DATA' : 'SUCCESS_WITH_ZERO_ROWS',
+      products,
+      count: products.length,
+      error: null
+    };
+  } catch (err: any) {
+    return {
+      status: 'NETWORK_ERROR',
+      products: [],
+      count: 0,
+      error: `NETWORK ERROR: ${err?.message || 'Failed to connect to Supabase'}`
+    };
   }
+}
+
+/**
+ * Fetch all products directly from Supabase
+ */
+export async function fetchSupabaseProducts(): Promise<ProductItem[]> {
+  const result = await fetchSupabaseProductsWithStatus();
+  if (result.error) {
+    console.error('[SUPABASE PRODUCTS ERROR]', result.error);
+    throw new Error(result.error);
+  }
+  return result.products;
 }
 
 /**

@@ -102,7 +102,9 @@ export interface AdminMediaAsset {
 
 export async function fetchAllMediaFromSupabase(): Promise<AdminMediaAsset[]> {
   const client = getSupabaseClient();
-  if (!client) return [];
+  if (!client) {
+    throw new Error('CONFIGURATION ERROR: Supabase client is not configured (missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY).');
+  }
 
   try {
     const { data, error } = await client
@@ -110,10 +112,13 @@ export async function fetchAllMediaFromSupabase(): Promise<AdminMediaAsset[]> {
       .select('*, products(id, name, slug), product_colours(id, name, hex_code)')
       .order('created_at', { ascending: false });
 
-    if (error || !data) {
-      console.error('Failed to fetch media from Supabase:', error);
-      return [];
+    if (error) {
+      const isRLS = error.code === '42501' || error.message?.toLowerCase().includes('permission') || error.message?.toLowerCase().includes('policy');
+      const prefix = isRLS ? 'RLS / PERMISSION ERROR' : 'QUERY ERROR';
+      throw new Error(`${prefix}: ${error.message} (code: ${error.code || 'unknown'})`);
     }
+
+    if (!data) return [];
 
     return data.map((m: any) => {
       const publicUrl = getProductMediaUrl(m.storage_path);
@@ -134,9 +139,11 @@ export async function fetchAllMediaFromSupabase(): Promise<AdminMediaAsset[]> {
         created_at: m.created_at || new Date().toISOString(),
       };
     });
-  } catch (err) {
-    console.error('Exception fetching media:', err);
-    return [];
+  } catch (err: any) {
+    if (err?.message?.startsWith('CONFIGURATION ERROR') || err?.message?.startsWith('RLS / PERMISSION ERROR') || err?.message?.startsWith('QUERY ERROR')) {
+      throw err;
+    }
+    throw new Error(`NETWORK ERROR: ${err?.message || 'Failed to connect to Supabase.'}`);
   }
 }
 

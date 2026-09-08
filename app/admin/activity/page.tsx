@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Shield, RefreshCw, AlertCircle, ShoppingBag, Box, Tag, Layers, Download, FileText } from 'lucide-react';
+import { Search, Shield, RefreshCw, ShoppingBag, Box, Tag, Layers, Download, FileText } from 'lucide-react';
 import { fetchFullOrdersFromSupabase } from '@/lib/supabase/orders';
 import { fetchProductsFromSupabase } from '@/lib/supabase/products';
 import { fetchCollectionsFromSupabase } from '@/lib/supabase/collections';
 import { fetchCategoriesFromSupabase } from '@/lib/supabase/categories';
 import { getStoredAuditLogs } from '@/lib/supabase/audit';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -29,73 +30,20 @@ export default function ActivityLogPage() {
     setLoading(true);
     try {
       const [ordersRes, prods, cols, cats] = await Promise.all([
-        fetchFullOrdersFromSupabase(),
-        fetchProductsFromSupabase(),
-        fetchCollectionsFromSupabase(),
-        fetchCategoriesFromSupabase()
+        fetchFullOrdersFromSupabase().catch(() => ({ records: [] })),
+        fetchProductsFromSupabase().catch(() => []),
+        fetchCollectionsFromSupabase().catch(() => []),
+        fetchCategoriesFromSupabase().catch(() => [])
       ]);
 
       const compiledLogs: ActivityLogItem[] = [];
 
-      // Add order audit entries
-      ordersRes.records.forEach((order) => {
-        const itemCount = order.products?.length || order.rawItems?.length || 1;
-        compiledLogs.push({
-          id: `LOG-ORD-${order.id}`,
-          timestamp: order.date || '2026-02-28 14:00',
-          user: typeof order.customer === 'string' ? order.customer : (order.customer?.name || 'Customer Checkout'),
-          email: typeof order.customer === 'string' ? 'checkout@veritas.co.za' : (order.customer?.email || 'checkout@veritas.co.za'),
-          action: `Submitted order (${itemCount} items, total ZAR ${order.total.toLocaleString()}). Fulfilment: ${(order.fulfilmentStatus || 'PENDING').toUpperCase()}`,
-          target: order.id,
-          type: 'order'
-        });
-      });
-
-      // Add product catalog entries
-      (prods || []).forEach((prod) => {
-        compiledLogs.push({
-          id: `LOG-PRD-${prod.id}`,
-          timestamp: prod.createdAt ? new Date(prod.createdAt).toLocaleString() : '2026-02-25 10:00',
-          user: 'Store Admin',
-          email: 'admin@veritas.co.za',
-          action: `Catalog registration for "${prod.name}" (ZAR ${prod.price})`,
-          target: prod.sku || prod.id,
-          type: 'product'
-        });
-      });
-
-      // Add collection entries
-      cols.forEach((col) => {
-        compiledLogs.push({
-          id: `LOG-COL-${col.id}`,
-          timestamp: col.created_at ? new Date(col.created_at).toLocaleString() : '2026-02-24 09:00',
-          user: 'Store Admin',
-          email: 'admin@veritas.co.za',
-          action: `Drop capsule initialized. Status: ${col.is_active ? 'ACTIVE' : 'INACTIVE'}`,
-          target: col.name,
-          type: 'collection'
-        });
-      });
-
-      // Add category entries
-      cats.forEach((cat) => {
-        compiledLogs.push({
-          id: `LOG-CAT-${cat.id}`,
-          timestamp: cat.created_at ? new Date(cat.created_at).toLocaleString() : '2026-02-23 08:00',
-          user: 'Store Admin',
-          email: 'admin@veritas.co.za',
-          action: `Apparel taxonomy category indexed: ${cat.name}`,
-          target: cat.slug || cat.name,
-          type: 'category'
-        });
-      });
-
-      // Add live recorded audit logs
+      // 1. Live recorded audit logs (from local cache and/or Supabase audit_logs table)
       const liveLogs = getStoredAuditLogs();
       liveLogs.forEach((l) => {
         compiledLogs.push({
           id: l.id,
-          timestamp: new Date(l.timestamp).toLocaleString(),
+          timestamp: l.timestamp ? new Date(l.timestamp).toLocaleString() : new Date().toLocaleString(),
           user: l.actorRole.replace('_', ' ').toUpperCase(),
           email: l.actorEmail,
           action: l.actionLabel,
@@ -106,10 +54,105 @@ export default function ActivityLogPage() {
         });
       });
 
+      // Try fetching from database audit_logs table if available
+      try {
+        const client = getSupabaseClient();
+        if (client) {
+          const { data: dbLogs } = await client
+            .from('audit_logs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          if (Array.isArray(dbLogs)) {
+            dbLogs.forEach((l: any) => {
+              // Avoid duplicates with local cache
+              if (!compiledLogs.some(c => c.id === l.id)) {
+                compiledLogs.push({
+                  id: l.id || `DB-LOG-${l.created_at}`,
+                  timestamp: l.created_at ? new Date(l.created_at).toLocaleString() : new Date().toLocaleString(),
+                  user: (l.actor_role || 'ADMIN').replace('_', ' ').toUpperCase(),
+                  email: l.actor_email || 'admin@veritas.internal',
+                  action: l.action_label || l.action || 'Administrative action',
+                  target: l.target_id || (l.target_type || 'SYSTEM').toUpperCase(),
+                  type: (l.target_type === 'order' || l.target_type === 'product' || l.target_type === 'collection' || l.target_type === 'category') 
+                    ? l.target_type 
+                    : 'system'
+                });
+              }
+            });
+          }
+        }
+      } catch {
+        // Table not present or query failed
+      }
+
+      // 2. Real order events
+      if (ordersRes?.records && ordersRes.records.length > 0) {
+        ordersRes.records.forEach((order) => {
+          const itemCount = order.products?.length || order.rawItems?.length || 1;
+          const dateStr = order.date ? new Date(order.date).toLocaleString() : new Date().toLocaleString();
+          compiledLogs.push({
+            id: `LOG-ORD-${order.id}`,
+            timestamp: dateStr,
+            user: typeof order.customer === 'string' ? order.customer : (order.customer?.name || 'Store Customer'),
+            email: typeof order.customer === 'string' ? 'customer@veritas.co.za' : (order.customer?.email || 'customer@veritas.co.za'),
+            action: `Customer order submitted (${itemCount} item${itemCount === 1 ? '' : 's'}, total ZAR ${order.total.toLocaleString()})`,
+            target: order.id,
+            type: 'order'
+          });
+        });
+      }
+
+      // 3. Product catalog registrations (only if real createdAt exists)
+      (prods || []).forEach((prod) => {
+        if (prod.createdAt) {
+          compiledLogs.push({
+            id: `LOG-PRD-${prod.id}`,
+            timestamp: new Date(prod.createdAt).toLocaleString(),
+            user: 'Store Admin',
+            email: 'admin@veritas.internal',
+            action: `Catalog registration for "${prod.name}" (ZAR ${prod.price})`,
+            target: prod.sku || prod.id,
+            type: 'product'
+          });
+        }
+      });
+
+      // 4. Collection events (only if real created_at exists)
+      (cols || []).forEach((col) => {
+        if (col.created_at) {
+          compiledLogs.push({
+            id: `LOG-COL-${col.id}`,
+            timestamp: new Date(col.created_at).toLocaleString(),
+            user: 'Store Admin',
+            email: 'admin@veritas.internal',
+            action: `Drop capsule initialized: "${col.name}"`,
+            target: col.name,
+            type: 'collection'
+          });
+        }
+      });
+
+      // 5. Category events (only if real created_at exists)
+      (cats || []).forEach((cat) => {
+        if (cat.created_at) {
+          compiledLogs.push({
+            id: `LOG-CAT-${cat.id}`,
+            timestamp: new Date(cat.created_at).toLocaleString(),
+            user: 'Store Admin',
+            email: 'admin@veritas.internal',
+            action: `Apparel category indexed: "${cat.name}"`,
+            target: cat.slug || cat.name,
+            type: 'category'
+          });
+        }
+      });
+
       compiledLogs.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
       setLogs(compiledLogs);
     } catch (err) {
-      console.error('Failed to load audit trail:', err);
+      console.error('Failed to load activity logs:', err);
     } finally {
       setLoading(false);
     }
@@ -145,9 +188,10 @@ export default function ActivityLogPage() {
   };
 
   const exportActivityPdf = () => {
+    if (filteredLogs.length === 0) return;
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     
-    // Luxury dark header bar
+    // Header bar
     doc.setFillColor(15, 15, 15);
     doc.rect(0, 0, 297, 24, 'F');
     doc.setFont('helvetica', 'bold');
@@ -156,10 +200,10 @@ export default function ActivityLogPage() {
     doc.text('VERITAS', 14, 11);
     doc.setFontSize(10);
     doc.setTextColor(255, 255, 255);
-    doc.text('ACTIVITY LOG & SYSTEM AUDIT TRAIL REPORT', 14, 18);
+    doc.text('ACTIVITY LOG REPORT', 14, 18);
     doc.setFontSize(8);
     doc.setTextColor(180, 180, 180);
-    doc.text(`Generated: ${new Date().toLocaleString()} | Security Classification: RESTRICTED ADMIN AUDIT`, 140, 18);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 180, 18);
 
     // Auto Table
     autoTable(doc, {
@@ -190,54 +234,36 @@ export default function ActivityLogPage() {
       margin: { top: 28, left: 14, right: 14 }
     });
 
-    doc.save(`VERITAS-Activity-Log-Audit-${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`VERITAS-Activity-Log-${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   return (
     <div className="space-y-6 pb-20">
-      {/* AUDIT NOTICE BANNER */}
-      <div className="bg-[#121212] border border-[#262626] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
-        <div className="flex items-center gap-2.5 text-[#D4AF37]">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>
-            <strong className="text-white">AUDIT TRAIL:</strong> Real-time compiled transaction logs from Supabase orders, catalog products, drop collections, and taxonomy.
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={exportActivityPdf}
-            disabled={filteredLogs.length === 0}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#D4AF37] hover:bg-[#B3932F] text-black font-bold uppercase text-xs tracking-wider rounded transition-colors disabled:opacity-40"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export Audit PDF
-          </button>
-          <button 
-            onClick={loadAuditTrail}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A1A] hover:bg-[#262626] text-white rounded border border-[#333] transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#D4AF37]' : ''}`} />
-            Refresh
-          </button>
-        </div>
-      </div>
-
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Activity Log</h1>
           <p className="text-xs text-[#888] font-mono mt-1">
-            TIMESTAMPED RECORD OF DATABASE TRANSACTIONS & ADMINISTRATIVE ACTIONS
+            Timestamped record of administrative actions and store events.
           </p>
         </div>
-        <button 
-          onClick={exportActivityPdf}
-          disabled={filteredLogs.length === 0}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#D4AF37] hover:bg-[#B3932F] text-black font-bold uppercase text-xs tracking-wider rounded transition-colors disabled:opacity-40 shadow-lg min-h-[40px]"
-        >
-          <FileText className="w-4 h-4" />
-          <span>Export Activity Log PDF</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={loadAuditTrail}
+            disabled={loading}
+            className="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-[#1A1A1A] hover:bg-[#262626] text-white text-xs font-mono rounded border border-[#333] transition-colors disabled:opacity-50 gap-1.5"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#D4AF37]' : ''}`} />
+            Refresh
+          </button>
+          <button 
+            onClick={exportActivityPdf}
+            disabled={filteredLogs.length === 0}
+            className="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-[#D4AF37] hover:bg-[#B3932F] text-black font-bold uppercase text-xs tracking-wider rounded transition-colors disabled:opacity-40 gap-1.5"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export PDF
+          </button>
+        </div>
       </div>
 
       <div className="bg-[#111] border border-[#1F1F1F] shadow-sm">
@@ -249,7 +275,7 @@ export default function ActivityLogPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search activity logs..."
-              className="w-full pl-10 pr-4 py-2 text-xs font-mono bg-[#0A0A0A] text-white border border-[#333] focus:outline-none focus:border-[#D4AF37]"
+              className="w-full pl-10 pr-4 py-2 text-xs font-mono bg-[#0A0A0A] text-white border border-[#333] focus:outline-none focus:border-[#D4AF37] min-h-[44px]"
             />
           </div>
           <div className="text-xs font-mono text-[#888]">
@@ -262,11 +288,19 @@ export default function ActivityLogPage() {
           {loading ? (
             <div className="p-8 text-center text-xs text-[#888] font-mono">
               <RefreshCw className="w-5 h-5 animate-spin text-[#D4AF37] mx-auto mb-2" />
-              Compiling transaction log from Supabase...
+              Loading activity log...
             </div>
           ) : filteredLogs.length === 0 ? (
-            <div className="p-8 text-center text-xs text-[#666] font-mono">
-              NO LOG ENTRIES MATCH THE SEARCH CRITERIA
+            <div className="p-12 text-center">
+              <div className="max-w-md mx-auto space-y-3">
+                <div className="w-12 h-12 rounded bg-[#1A1A1A] border border-[#262626] flex items-center justify-center mx-auto text-[#666]">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-white font-mono">NO ACTIVITY RECORDED</h3>
+                <p className="text-xs text-[#777] font-mono">
+                  No administrative activity has been recorded yet.
+                </p>
+              </div>
             </div>
           ) : (
             filteredLogs.map((log) => (
@@ -305,13 +339,21 @@ export default function ActivityLogPage() {
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-xs text-[#888] font-mono">
                     <RefreshCw className="w-6 h-6 animate-spin text-[#D4AF37] mx-auto mb-2" />
-                    Compiling transaction log from Supabase...
+                    Loading activity log...
                   </td>
                 </tr>
               ) : filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-xs text-[#666] font-mono">
-                    NO LOG ENTRIES MATCH THE SEARCH CRITERIA
+                  <td colSpan={5} className="px-6 py-16 text-center">
+                    <div className="max-w-md mx-auto space-y-3">
+                      <div className="w-12 h-12 rounded bg-[#1A1A1A] border border-[#262626] flex items-center justify-center mx-auto text-[#666]">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-white font-mono">NO ACTIVITY RECORDED</h3>
+                      <p className="text-xs text-[#777] font-mono">
+                        No administrative activity has been recorded yet.
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -335,4 +377,3 @@ export default function ActivityLogPage() {
     </div>
   );
 }
-

@@ -17,7 +17,9 @@ import {
   Boxes,
   ArrowRight,
   RefreshCw,
-  Minus
+  Minus,
+  Unlock,
+  Lock
 } from 'lucide-react';
 import { InventoryItem, calculateStockStatus, mockProducts, ProductItem } from '@/lib/mock-data';
 import { getStoredProducts, persistProducts, getInventoryFromProducts } from '@/lib/product-store';
@@ -30,13 +32,16 @@ import {
   batchUpdateVariantStockInSupabase 
 } from '@/lib/supabase/inventory';
 import { usePWA } from '@/hooks/use-pwa';
+import { useAdminAuth } from '@/lib/auth-context';
 
 export default function InventoryPage() {
+  const { isAuthenticated, openUnlockModal } = useAdminAuth();
   const { isOnline } = usePWA();
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [originalItems, setOriginalItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [rowSavingId, setRowSavingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,19 +63,18 @@ export default function InventoryPage() {
 
   const loadData = async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
+    setError(null);
     try {
       if (isSupabaseConfigured()) {
         const supaProducts = await fetchSupabaseProducts();
-        if (supaProducts) {
-          setProducts(supaProducts);
-          const invList = getInventoryFromProducts(supaProducts);
-          setItems(invList);
-          setOriginalItems(invList);
-          if (supaProducts.length > 0) {
-            setSelectedProductId(prev => prev || supaProducts[0].id);
-          }
-          return;
+        setProducts(supaProducts);
+        const invList = getInventoryFromProducts(supaProducts);
+        setItems(invList);
+        setOriginalItems(invList);
+        if (supaProducts.length > 0) {
+          setSelectedProductId(prev => prev || supaProducts[0].id);
         }
+        return;
       }
       const loaded = getStoredProducts([]);
       setProducts(loaded);
@@ -82,7 +86,11 @@ export default function InventoryPage() {
       }
     } catch (err: any) {
       console.error('Failed to load inventory data:', err);
-      showToast(`Failed to load inventory: ${err?.message || 'Unknown error'}`, 'error');
+      const msg = err?.message || 'Failed to load inventory from database.';
+      setError(msg);
+      showToast(`Failed to load inventory: ${msg}`, 'error');
+      setItems([]);
+      setOriginalItems([]);
     } finally {
       if (showSpinner) setLoading(false);
     }
@@ -102,10 +110,18 @@ export default function InventoryPage() {
       }
     };
 
+    const handleAuthChange = () => {
+      if (mounted) {
+        loadData(false);
+      }
+    };
+
     window.addEventListener('veritas_products_updated', handleUpdate);
+    window.addEventListener('veritas_admin_auth_changed', handleAuthChange);
     return () => {
       mounted = false;
       window.removeEventListener('veritas_products_updated', handleUpdate);
+      window.removeEventListener('veritas_admin_auth_changed', handleAuthChange);
     };
   }, []);
 
@@ -135,6 +151,11 @@ export default function InventoryPage() {
 
   // Quick atomic stock delta (+1, -1, +5, -5) directly persisted to database
   const handleQuickDelta = async (item: InventoryItem, delta: number) => {
+    if (!isAuthenticated) {
+      openUnlockModal();
+      showToast('Admin authorization required to modify inventory stock.', 'error');
+      return;
+    }
     const variantId = item.variantId || (item.id.startsWith('INV-') ? item.id.replace(/^INV-/, '') : item.id);
     if (!variantId) {
       showToast('Error: Variant ID not found for this inventory item.', 'error');
@@ -155,7 +176,13 @@ export default function InventoryPage() {
           window.dispatchEvent(new CustomEvent('veritas_products_updated'));
         }
       } else {
-        showToast(`Failed to adjust stock: ${result.error}`, 'error');
+        const errorMsg = result.error?.includes('Admin authorization required') || result.error?.includes('Unauthorized') || result.error?.includes('Forbidden')
+          ? 'Admin authorization required'
+          : `Failed to adjust stock: ${result.error}`;
+        if (result.error?.includes('Admin authorization required') || result.error?.includes('Unauthorized')) {
+          openUnlockModal();
+        }
+        showToast(errorMsg, 'error');
       }
       return;
     }
@@ -168,6 +195,11 @@ export default function InventoryPage() {
 
   // Save single variant stock immediately to Supabase
   const handleSaveSingleRow = async (item: InventoryItem) => {
+    if (!isAuthenticated) {
+      openUnlockModal();
+      showToast('Admin authorization required to modify inventory stock.', 'error');
+      return;
+    }
     const variantId = item.variantId || (item.id.startsWith('INV-') ? item.id.replace(/^INV-/, '') : item.id);
     if (!variantId) {
       showToast('Error: Variant ID not found for this inventory item.', 'error');
@@ -191,7 +223,13 @@ export default function InventoryPage() {
         if (orig) {
           setItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: orig.quantity, status: orig.status } : i));
         }
-        showToast(`Supabase update error: ${result.error}`, 'error');
+        const errorMsg = result.error?.includes('Admin authorization required') || result.error?.includes('Unauthorized') || result.error?.includes('Forbidden')
+          ? 'Admin authorization required'
+          : `Supabase update error: ${result.error}`;
+        if (result.error?.includes('Admin authorization required') || result.error?.includes('Unauthorized')) {
+          openUnlockModal();
+        }
+        showToast(errorMsg, 'error');
       }
       return;
     }
@@ -202,6 +240,11 @@ export default function InventoryPage() {
 
   // Save all changes back to Supabase
   const handleSaveAll = async () => {
+    if (!isAuthenticated) {
+      openUnlockModal();
+      showToast('Admin authorization required to modify inventory stock.', 'error');
+      return;
+    }
     setIsSaving(true);
     if (isSupabaseConfigured()) {
       const updates = items.map(item => ({
@@ -262,6 +305,11 @@ export default function InventoryPage() {
   // Add new variant inventory record
   const handleAddVariant = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAuthenticated) {
+      openUnlockModal();
+      showToast('Admin authorization required to add new inventory variants.', 'error');
+      return;
+    }
     const targetProduct = products.find(p => p.id === selectedProductId);
     if (!targetProduct) {
       showToast('Please select an existing product.', 'error');
@@ -383,7 +431,7 @@ export default function InventoryPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-widest text-white">Variant Inventory</h1>
           <p className="text-[11px] sm:text-xs text-[#888] font-mono mt-0.5 sm:mt-1">
-            SUPABASE STOCK TELEMETRY & DISPATCH
+            REAL-TIME STOCK LEVELS & DISPATCH
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
@@ -392,8 +440,8 @@ export default function InventoryPage() {
             onClick={() => { void loadData(true); }}
             disabled={loading}
             className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 border border-[#333] bg-[#111] hover:bg-[#1A1A1A] text-[#888] hover:text-white rounded transition-colors active:scale-95"
-            title="Reload from Supabase"
-            aria-label="Reload from Supabase"
+            title="Refresh"
+            aria-label="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#D4AF37]' : ''}`} />
           </button>
@@ -479,6 +527,11 @@ export default function InventoryPage() {
             <div className="p-8 text-center text-xs font-mono text-[#888]">
               <RefreshCw className="w-5 h-5 animate-spin text-[#D4AF37] mx-auto mb-2" />
               Querying Supabase product_variants table...
+            </div>
+          ) : error ? (
+            <div className="p-8 text-center text-xs text-red-400 font-mono bg-red-950/20 space-y-1">
+              <p className="font-bold text-sm uppercase text-red-300">Unable to load inventory</p>
+              <p className="text-[#888]">{error}</p>
             </div>
           ) : items.length === 0 ? (
             <div className="p-8 text-center text-xs text-[#888] font-mono">
@@ -615,6 +668,18 @@ export default function InventoryPage() {
                   <td colSpan={9} className="px-6 py-16 text-center text-xs font-mono text-[#888]">
                     <RefreshCw className="w-5 h-5 animate-spin text-[#D4AF37] mx-auto mb-2" />
                     Querying Supabase product_variants table...
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={9} className="px-6 py-16 text-center bg-red-950/20">
+                    <div className="max-w-md mx-auto space-y-3 text-red-400 font-mono">
+                      <AlertTriangle className="w-8 h-8 mx-auto text-red-500" />
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-red-300">Unable to load inventory</h3>
+                      <p className="text-xs text-[#888] font-mono">
+                        {error}
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : items.length === 0 ? (

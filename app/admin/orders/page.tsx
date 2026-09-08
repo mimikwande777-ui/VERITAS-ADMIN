@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { 
   Search, 
   Copy, 
@@ -13,15 +14,19 @@ import {
   Mail, 
   Package, 
   Sparkles, 
-  X,
-  RefreshCw,
-  AlertTriangle,
-  ChevronRight,
-  ExternalLink,
-  Clock,
-  ShieldCheck,
-  Truck,
-  CheckCircle2
+  X, 
+  RefreshCw, 
+  AlertTriangle, 
+  ChevronRight, 
+  ExternalLink, 
+  Clock, 
+  ShieldCheck, 
+  Truck, 
+  CheckCircle2,
+  Unlock,
+  Lock,
+  Calendar,
+  SlidersHorizontal
 } from 'lucide-react';
 import { OrderRecord } from '@/lib/mock-data';
 import { 
@@ -38,9 +43,10 @@ import {
   getOrderStatusLabel
 } from '@/lib/supabase/types';
 import { formatZAR, formatShippingZAR } from '@/lib/utils';
-import { getAdminAuthHeaders } from '@/lib/auth-context';
+import { getAdminAuthHeaders, useAdminAuth } from '@/lib/auth-context';
 
 export default function OrdersPage() {
+  const { isAuthenticated, openUnlockModal } = useAdminAuth();
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [fullOrders, setFullOrders] = useState<AdminOrderFull[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -48,6 +54,10 @@ export default function OrdersPage() {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [dateRangePreset, setDateRangePreset] = useState<'all' | 'today' | '7d' | '30d' | '90d' | 'custom'>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [showDateCustom, setShowDateCustom] = useState<boolean>(false);
   const [selectedOrderForOTC, setSelectedOrderForOTC] = useState<OrderRecord | null>(null);
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<OrderRecord | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -65,35 +75,39 @@ export default function OrdersPage() {
     setError(null);
     
     try {
-      // First attempt: fetch from API endpoint with authenticated session headers
+      // Primary: fetch from secure server API endpoint with service client privileges
       const authHeaders = await getAdminAuthHeaders();
       const res = await fetch(`/api/admin/orders?t=${Date.now()}`, { 
         headers: authHeaders,
         cache: 'no-store' 
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.records)) {
-          setOrders(data.records);
-          setFullOrders(data.orders || []);
-          setLoading(false);
-          return;
-        }
-      }
 
-      // Fallback direct Supabase fetch
-      const { orders: dbOrders, records, error: fetchErr } = await fetchFullOrdersFromSupabase();
-      if (fetchErr) {
-        setError(fetchErr);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        let failureMessage = errJson.error || `Server API error (${res.status} ${res.statusText})`;
+        if (res.status === 401 || res.status === 403) {
+          failureMessage = 'Admin authorization required';
+        }
+        setError(failureMessage);
         setOrders([]);
         setFullOrders([]);
+        setLoading(false);
+        return;
+      }
+
+      const data = await res.json();
+      if (data.success && Array.isArray(data.records)) {
+        setOrders(data.records);
+        setFullOrders(data.orders || []);
+        setError(null);
       } else {
-        setFullOrders(dbOrders);
-        setOrders(records);
+        setError(data.error || 'Unable to parse orders response.');
+        setOrders([]);
+        setFullOrders([]);
       }
     } catch (err: any) {
       console.error('Error fetching orders:', err);
-      setError(err?.message || 'Could not load orders.');
+      setError(err?.message || 'Network error: Could not reach orders API.');
       setOrders([]);
       setFullOrders([]);
     } finally {
@@ -109,8 +123,17 @@ export default function OrdersPage() {
       }
     };
     fetchOrders();
+
+    const handleAuthChange = () => {
+      if (active) {
+        void loadOrders();
+      }
+    };
+
+    window.addEventListener('veritas_admin_auth_changed', handleAuthChange);
     return () => {
       active = false;
+      window.removeEventListener('veritas_admin_auth_changed', handleAuthChange);
     };
   }, [loadOrders]);
 
@@ -237,11 +260,33 @@ INTERNAL TRACK:   ${order.trackingNumber}
     showToast(`Downloaded OTC JSON Manifest for ${order.id}`);
   };
 
-  // Filtered orders
+  // Handle date preset change
+  const handleDatePresetChange = (preset: 'all' | 'today' | '7d' | '30d' | '90d' | 'custom') => {
+    setDateRangePreset(preset);
+    if (preset === 'custom') {
+      setShowDateCustom(true);
+      return;
+    }
+    setShowDateCustom(false);
+    setStartDate('');
+    setEndDate('');
+  };
+
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setDateRangePreset('all');
+    setStartDate('');
+    setEndDate('');
+    setShowDateCustom(false);
+  };
+
+  // Filtered orders with search, status, and date range filters
   const filteredOrders = orders.filter(order => {
     const customerName = order.customer.name || '';
     const customerEmail = order.customer.email || '';
-    const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = !searchTerm || 
+                          order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           customerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           order.trackingNumber.toLowerCase().includes(searchTerm.toLowerCase());
@@ -251,8 +296,44 @@ INTERNAL TRACK:   ${order.trackingNumber}
       matchesStatus = order.fulfilmentStatus === statusFilter;
     }
 
-    return matchesSearch && matchesStatus;
+    let matchesDate = true;
+    if (order.date) {
+      const orderDateObj = new Date(order.date);
+      // Reset time to start of day in UTC/local comparison
+      orderDateObj.setHours(0, 0, 0, 0);
+
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      if (dateRangePreset === 'today') {
+        matchesDate = orderDateObj.getTime() === today.getTime();
+      } else if (dateRangePreset === '7d') {
+        const past7Days = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        matchesDate = orderDateObj >= past7Days;
+      } else if (dateRangePreset === '30d') {
+        const past30Days = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+        matchesDate = orderDateObj >= past30Days;
+      } else if (dateRangePreset === '90d') {
+        const past90Days = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
+        matchesDate = orderDateObj >= past90Days;
+      } else if (dateRangePreset === 'custom') {
+        if (startDate) {
+          const start = new Date(startDate);
+          start.setHours(0, 0, 0, 0);
+          if (orderDateObj < start) matchesDate = false;
+        }
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          if (orderDateObj > end) matchesDate = false;
+        }
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesDate;
   });
+
+  const hasActiveFilters = Boolean(searchTerm || statusFilter !== 'all' || dateRangePreset !== 'all' || startDate || endDate);
 
   return (
     <div className="space-y-6 pb-24">
@@ -291,47 +372,165 @@ INTERNAL TRACK:   ${order.trackingNumber}
         </div>
       </div>
 
-      {/* SEARCH AND FILTERS */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#0F0F0F] p-3 sm:p-4 rounded-xs border border-[#1F1F1F]">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-[#666] absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search order #, client name, email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full min-h-[44px] bg-[#161616] border border-[#2B2B2B] pl-9 pr-4 py-2 text-base md:text-xs rounded-none text-white placeholder-[#555] focus:outline-hidden focus:border-[#D4AF37] font-mono"
-          />
+      {/* SEARCH AND FILTERS TOOLBAR */}
+      <div className="bg-[#0F0F0F] p-3 sm:p-4 rounded-xs border border-[#1F1F1F] space-y-3">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          {/* Text Search Input */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-[#666] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              id="order-search-filter"
+              name="orderSearch"
+              type="text"
+              placeholder="Search by customer name, order number, or email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full min-h-[44px] bg-[#161616] border border-[#2B2B2B] pl-9 pr-9 py-2 text-sm md:text-xs rounded-none text-white placeholder-[#555] focus:outline-hidden focus:border-[#D4AF37] font-mono"
+              aria-label="Search orders by customer name or order number"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#666] hover:text-white min-w-[28px] min-h-[28px] flex items-center justify-center cursor-pointer"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Controls row */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+            {/* Fulfilment Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="flex-1 sm:flex-none min-h-[44px] bg-[#161616] border border-[#2B2B2B] text-white px-3 py-2 text-sm md:text-xs rounded-none font-mono focus:outline-hidden focus:border-[#D4AF37]"
+              aria-label="Filter by order fulfilment stage"
+            >
+              <option value="all">All Stages ({orders.length})</option>
+              <option value="pending">Pending</option>
+              <option value="sent_to_otc">Sent to OTC</option>
+              <option value="in_production">In Production</option>
+              <option value="shipped">Shipped</option>
+              <option value="delivered">Delivered</option>
+            </select>
+
+            {/* Date Range Preset Selector */}
+            <div className="flex-1 sm:flex-none flex items-center bg-[#161616] border border-[#2B2B2B] px-2.5 min-h-[44px]">
+              <Calendar className="w-3.5 h-3.5 text-[#D4AF37] mr-2 shrink-0" />
+              <select
+                value={dateRangePreset}
+                onChange={(e) => handleDatePresetChange(e.target.value as any)}
+                className="bg-transparent text-white text-sm md:text-xs font-mono focus:outline-hidden cursor-pointer py-2 pr-2"
+                aria-label="Filter orders by date range"
+              >
+                <option value="all" className="bg-[#161616] text-white">All Time</option>
+                <option value="today" className="bg-[#161616] text-white">Today</option>
+                <option value="7d" className="bg-[#161616] text-white">Past 7 Days</option>
+                <option value="30d" className="bg-[#161616] text-white">Past 30 Days</option>
+                <option value="90d" className="bg-[#161616] text-white">Past 90 Days</option>
+                <option value="custom" className="bg-[#161616] text-white">Custom Range...</option>
+              </select>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full sm:w-auto min-h-[44px] bg-[#161616] border border-[#2B2B2B] text-white px-3 py-2 text-base md:text-xs rounded-none font-mono focus:outline-hidden focus:border-[#D4AF37]"
-          >
-            <option value="all">All Stages ({orders.length})</option>
-            <option value="pending">Pending</option>
-            <option value="sent_to_otc">Sent to OTC</option>
-            <option value="in_production">In Production</option>
-            <option value="shipped">Shipped</option>
-            <option value="delivered">Delivered</option>
-          </select>
-        </div>
+        {/* Custom Date Range Pickers (Rendered when custom preset is selected or toggled) */}
+        {dateRangePreset === 'custom' && (
+          <div className="pt-2 border-t border-[#1F1F1F] flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono text-[#888] uppercase shrink-0">From:</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="min-h-[40px] bg-[#161616] border border-[#2B2B2B] text-white px-3 py-1.5 text-xs font-mono rounded-none focus:outline-hidden focus:border-[#D4AF37]"
+                aria-label="Filter orders starting date"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono text-[#888] uppercase shrink-0">To:</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="min-h-[40px] bg-[#161616] border border-[#2B2B2B] text-white px-3 py-1.5 text-xs font-mono rounded-none focus:outline-hidden focus:border-[#D4AF37]"
+                aria-label="Filter orders ending date"
+              />
+            </div>
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => { setStartDate(''); setEndDate(''); }}
+                className="text-[11px] font-mono text-[#888] hover:text-white underline self-start sm:self-center cursor-pointer py-1"
+              >
+                Clear date limits
+              </button>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* FILTER STATS & RESET BAR */}
+      {hasActiveFilters && (
+        <div className="text-xs font-mono text-[#888] flex items-center justify-between px-1 flex-wrap gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span>Showing <strong className="text-[#D4AF37]">{filteredOrders.length}</strong> of {orders.length} orders</span>
+            {dateRangePreset !== 'all' && (
+              <span className="bg-[#181818] border border-[#333] px-2 py-0.5 text-[10px] text-white rounded-xs">
+                Period: {dateRangePreset === 'custom' ? `${startDate || 'Start'} to ${endDate || 'End'}` : dateRangePreset.toUpperCase()}
+              </span>
+            )}
+            {statusFilter !== 'all' && (
+              <span className="bg-[#181818] border border-[#333] px-2 py-0.5 text-[10px] text-white rounded-xs">
+                Status: {getFulfilmentStatusLabel(statusFilter)}
+              </span>
+            )}
+          </div>
+          <button 
+            type="button" 
+            onClick={handleResetFilters}
+            className="text-[#888] hover:text-[#D4AF37] underline cursor-pointer text-xs font-mono"
+          >
+            Reset all filters
+          </button>
+        </div>
+      )}
 
       {/* ORDERS LIST CONTAINER */}
       <div className="bg-[#0F0F0F] rounded-xs border border-[#1F1F1F] overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-xs font-mono text-[#888] flex items-center justify-center gap-3">
             <RefreshCw className="w-4 h-4 animate-spin text-[#D4AF37]" />
-            <span>Fetching live orders from Supabase...</span>
+            <span>Loading orders...</span>
           </div>
         ) : error ? (
-          <div className="p-8 text-center bg-red-950/20 border-b border-red-900/30 text-red-400 text-xs font-mono">
-            <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-red-500" />
-            <p className="font-bold">Supabase Query Notice</p>
-            <p className="text-[#888] mt-1">{error}</p>
+          <div className="p-10 text-center bg-[#111] border-b border-[#222] text-xs font-mono">
+            <div className="w-12 h-12 rounded-full bg-amber-950/40 border border-amber-800/40 text-[#D4AF37] flex items-center justify-center mx-auto mb-3">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <p className="font-bold text-sm uppercase tracking-wider text-white">
+              {error === 'Admin authorization required' ? 'Admin authorization required' : 'Unable to load orders'}
+            </p>
+            <p className="text-[#888] mt-1 max-w-md mx-auto">
+              {error === 'Admin authorization required' 
+                ? 'A verified Supabase administrator account is required to view customer orders, shipping addresses, and transaction data.'
+                : error}
+            </p>
+            {error === 'Admin authorization required' && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={openUnlockModal}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 min-h-[44px] bg-[#D4AF37] hover:bg-[#B3932F] text-black font-bold uppercase text-xs rounded-xs transition-all shadow-md cursor-pointer"
+                >
+                  <Unlock className="w-4 h-4 text-black" />
+                  <span>Unlock Admin</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : orders.length === 0 ? (
           <div className="p-12 text-center">
@@ -341,7 +540,7 @@ INTERNAL TRACK:   ${order.trackingNumber}
               </div>
               <h3 className="text-sm font-bold uppercase tracking-wider text-white">NO ORDERS YET</h3>
               <p className="text-xs text-[#888] font-mono">
-                Customer orders placed on the public VERITAS storefront will appear here in real-time.
+                Customer orders placed on the storefront will appear here.
               </p>
             </div>
           </div>
@@ -614,8 +813,8 @@ INTERNAL TRACK:   ${order.trackingNumber}
         )}
 
         <div className="p-4 border-t border-[#1F1F1F] flex flex-col sm:flex-row justify-between items-center gap-2 bg-[#151515] text-xs font-mono text-[#888]">
-          <span>Showing {filteredOrders.length} of {orders.length} real Supabase orders</span>
-          <span className="text-[10px] text-[#D4AF37]">SHARED SUPABASE DATABASE LIVE CONNECTED</span>
+          <span>Showing {filteredOrders.length} of {orders.length} order{orders.length === 1 ? '' : 's'}</span>
+          <span className="text-[10px] text-[#D4AF37] font-bold">MANAGEMENT CONSOLE</span>
         </div>
       </div>
 
@@ -678,7 +877,7 @@ INTERNAL TRACK:   ${order.trackingNumber}
           <div className="bg-[#111] border border-[#2B2B2B] rounded-xs max-w-2xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#222] pb-4">
               <div>
-                <span className="text-[10px] font-mono text-[#D4AF37] uppercase tracking-widest block">SUPABASE ORDER LEDGER</span>
+                <span className="text-[10px] font-mono text-[#D4AF37] uppercase tracking-widest block">ORDER SUMMARY</span>
                 <h3 className="text-lg font-bold uppercase tracking-wider text-white">Order {selectedOrderDetails.id}</h3>
               </div>
               <button 

@@ -28,18 +28,18 @@ function ConfirmationContent() {
       {/* SUCCESS BANNER */}
       <div className="bg-[#0E0E0E] border border-[#1F1F1F] rounded-xs p-6 sm:p-10 space-y-8 text-center sm:text-left">
         <div className="flex flex-col sm:flex-row items-center gap-4 border-b border-[#1A1A1A] pb-8">
-          <div className="w-16 h-16 rounded-full bg-emerald-950/60 border border-emerald-700/60 text-emerald-400 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-8 h-8" />
+          <div className="w-16 h-16 rounded-full bg-amber-950/60 border border-amber-700/60 text-[#D4AF37] flex items-center justify-center shrink-0">
+            <Clock className="w-8 h-8" />
           </div>
           <div className="space-y-1">
             <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-[#D4AF37] font-bold">
-              ORDER CONFIRMED & LOGGED IN SUPABASE
+              ORDER RECEIVED — PAYMENT PENDING
             </span>
             <h1 className="text-2xl sm:text-4xl font-black uppercase tracking-tight text-white">
               Thank You, {customerName}
             </h1>
             <p className="text-xs sm:text-sm text-[#888] font-mono">
-              Confirmation receipt and courier dispatch updates have been dispatched to <strong className="text-white">{customerEmail}</strong>.
+              Order confirmation and EFT payment instructions have been recorded and sent to <strong className="text-white">{customerEmail}</strong>.
             </p>
           </div>
         </div>
@@ -52,10 +52,10 @@ function ConfirmationContent() {
           </div>
 
           <div className="p-4 bg-[#141414] border border-[#222] rounded-xs space-y-1">
-            <span className="text-[10px] text-[#777] uppercase">Fulfillment Status</span>
+            <span className="text-[10px] text-[#777] uppercase">Payment Status</span>
             <p className="text-sm font-bold text-[#D4AF37] uppercase flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
-              <span>Pending OTC Dispatch</span>
+              <span>Payment Pending (EFT)</span>
             </p>
           </div>
 
@@ -82,7 +82,7 @@ function ConfirmationContent() {
               </span>
               <div>
                 <strong className="text-white block">Order Encrypted & Authenticated</strong>
-                <span className="text-[#777] text-[11px]">Your payment and line items are locked into our central PostgreSQL database.</span>
+                <span className="text-[#777] text-[11px]">Your order details and line items are logged into our central database. Awaiting EFT payment settlement before dispatch.</span>
               </div>
             </div>
 

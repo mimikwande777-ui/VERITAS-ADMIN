@@ -75,30 +75,17 @@ export default function CartPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
             {/* LEFT: CART ITEMS LIST (7-8 cols on lg) */}
             <div className="lg:col-span-7 xl:col-span-8 space-y-4">
-              {/* Free Shipping Progress Indicator */}
-              <div className="p-4 bg-[#121212] border border-[#222] rounded-xs space-y-2">
-                <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="flex items-center gap-2 text-white">
-                    <Truck className="w-4 h-4 text-[#D4AF37]" />
-                    {amountNeededForFreeShipping > 0 ? (
-                      <span>
-                        Add <strong className="text-[#D4AF37]">{formatZAR(amountNeededForFreeShipping)}</strong> for Free Nationwide Courier!
-                      </span>
-                    ) : (
-                      <span className="text-emerald-400 font-bold">
-                        You qualify for Complimentary Nationwide Courier in SA!
-                      </span>
-                    )}
+              {/* Free Shipping Indicator */}
+              <div className="p-4 bg-[#121212] border border-[#222] rounded-xs flex items-center justify-between text-xs font-mono">
+                <span className="flex items-center gap-2 text-white">
+                  <Truck className="w-4 h-4 text-[#D4AF37]" />
+                  <span className="text-emerald-400 font-bold uppercase tracking-wider">
+                    Complimentary Nationwide Door-to-Door Courier on all orders (R0)
                   </span>
-                  <span className="text-[#777]">{Math.round(progressPercent)}%</span>
-                </div>
-                {/* Progress bar */}
-                <div className="w-full bg-[#222] h-1.5 rounded-full overflow-hidden">
-                  <div 
-                    className="bg-[#D4AF37] h-full transition-all duration-500" 
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
+                </span>
+                <span className="text-[#D4AF37] font-bold uppercase text-[10px] bg-[#1A1A1A] px-2 py-0.5 border border-[#333] rounded-xs">
+                  Free Shipping
+                </span>
               </div>
 
               {/* Items List */}

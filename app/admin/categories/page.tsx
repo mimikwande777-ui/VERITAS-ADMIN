@@ -123,7 +123,7 @@ export default function CategoriesPage() {
         <div>
           <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Categories</h1>
           <p className="text-xs text-[#888] font-mono mt-1">
-            SUPABASE CATEGORIES TABLE • APPAREL TAXONOMY & CLASSIFICATIONS
+            APPAREL TAXONOMY & CLASSIFICATIONS
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -131,7 +131,7 @@ export default function CategoriesPage() {
             onClick={loadData}
             disabled={loading}
             className="p-2 border border-[#333] bg-[#111] hover:bg-[#1A1A1A] text-[#888] hover:text-white rounded transition-colors"
-            title="Reload from Supabase"
+            title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#D4AF37]' : ''}`} />
           </button>
@@ -248,7 +248,7 @@ export default function CategoriesPage() {
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-xs text-[#888] font-mono">
                     <RefreshCw className="w-6 h-6 animate-spin text-[#D4AF37] mx-auto mb-2" />
-                    Querying Supabase categories...
+                    Loading categories...
                   </td>
                 </tr>
               ) : categories.length === 0 ? (

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { 
   BarChart, 
@@ -21,16 +21,20 @@ import {
   SendHorizontal,
   Inbox,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Lock,
+  Unlock,
+  ShieldCheck
 } from 'lucide-react';
 import { OrderRecord } from '@/lib/mock-data';
 import { fetchFullOrdersFromSupabase } from '@/lib/supabase/orders';
 import { getPaymentStatusLabel, getFulfilmentStatusLabel } from '@/lib/supabase/types';
 import { useProductsStore, getInventoryFromProducts } from '@/lib/product-store';
 import { formatZAR, formatNumber } from '@/lib/utils';
-import { getAdminAuthHeaders } from '@/lib/auth-context';
+import { getAdminAuthHeaders, useAdminAuth } from '@/lib/auth-context';
 
 export default function Dashboard() {
+  const { isAuthenticated, openUnlockModal } = useAdminAuth();
   const products = useProductsStore();
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [loadingOrders, setLoadingOrders] = useState<boolean>(true);
@@ -39,34 +43,53 @@ export default function Dashboard() {
   const lowStockItems = inventoryItems.filter(item => item.status === 'Low Stock' || item.status === 'Out of Stock');
   const outOfStockItems = inventoryItems.filter(item => item.status === 'Out of Stock');
 
-  useEffect(() => {
-    async function loadRealOrders() {
-      setLoadingOrders(true);
-      try {
-        const authHeaders = await getAdminAuthHeaders();
-        const res = await fetch(`/api/admin/orders?t=${Date.now()}`, { 
-          headers: authHeaders,
-          cache: 'no-store' 
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.records)) {
-            setOrders(data.records);
-            setLoadingOrders(false);
-            return;
-          }
+  const loadRealOrders = useCallback(async () => {
+    try {
+      const authHeaders = await getAdminAuthHeaders();
+      const res = await fetch(`/api/admin/orders?t=${Date.now()}`, { 
+        headers: authHeaders,
+        cache: 'no-store' 
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.records)) {
+          setOrders(data.records);
+          setLoadingOrders(false);
+          return;
         }
-        const { records } = await fetchFullOrdersFromSupabase();
-        setOrders(records);
-      } catch (err) {
-        console.error('Failed to load real orders for dashboard:', err);
-      } finally {
-        setLoadingOrders(false);
       }
+      const { records } = await fetchFullOrdersFromSupabase();
+      setOrders(records);
+    } catch (err) {
+      console.error('Failed to load real orders for dashboard:', err);
+      setOrders([]);
+    } finally {
+      setLoadingOrders(false);
     }
-
-    loadRealOrders();
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const initFetch = async () => {
+      if (active) {
+        await loadRealOrders();
+      }
+    };
+    initFetch();
+
+    const handleAuthChange = () => {
+      if (active) {
+        setLoadingOrders(true);
+        void loadRealOrders();
+      }
+    };
+
+    window.addEventListener('veritas_admin_auth_changed', handleAuthChange);
+    return () => {
+      active = false;
+      window.removeEventListener('veritas_admin_auth_changed', handleAuthChange);
+    };
+  }, [loadRealOrders]);
 
   // Real calculations derived from Supabase
   const totalProductsCount = products.length;
@@ -164,8 +187,23 @@ export default function Dashboard() {
         <div className="bg-[#111] border border-[#1F1F1F] p-3 sm:p-4 flex flex-col justify-between hover:border-[#333] transition-colors">
           <span className="text-[9px] sm:text-[10px] text-[#888] uppercase tracking-wider font-mono font-bold">TOTAL ORDERS</span>
           <div className="mt-2 sm:mt-3">
-            <h2 className="text-xl sm:text-2xl lg:text-3xl font-light text-white font-mono">{totalOrdersCount}</h2>
-            <p className="text-[9px] sm:text-[10px] text-[#666] mt-0.5 sm:mt-1 font-mono">{pendingOrdersCount} pending OTC</p>
+            {isAuthenticated ? (
+              <>
+                <h2 className="text-xl sm:text-2xl lg:text-3xl font-light text-white font-mono">{totalOrdersCount}</h2>
+                <p className="text-[9px] sm:text-[10px] text-[#666] mt-0.5 sm:mt-1 font-mono">{pendingOrdersCount} pending OTC</p>
+              </>
+            ) : (
+              <div>
+                <span className="text-sm font-bold text-amber-500 font-mono block">PROTECTED</span>
+                <button
+                  type="button"
+                  onClick={openUnlockModal}
+                  className="text-[10px] text-[#D4AF37] hover:underline font-mono mt-0.5 cursor-pointer flex items-center gap-1"
+                >
+                  <Lock className="w-2.5 h-2.5" /> Unlock to view
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -173,10 +211,25 @@ export default function Dashboard() {
         <div className="bg-[#111] border border-[#1F1F1F] p-3 sm:p-4 flex flex-col justify-between hover:border-[#333] transition-colors">
           <span className="text-[9px] sm:text-[10px] text-[#888] uppercase tracking-wider font-mono font-bold">REVENUE</span>
           <div className="mt-2 sm:mt-3">
-            <h2 className="text-lg sm:text-xl lg:text-2xl font-light text-[#D4AF37] font-mono truncate">
-              {formatZAR(paidRevenue > 0 ? paidRevenue : totalGrossRevenue)}
-            </h2>
-            <p className="text-[9px] sm:text-[10px] text-[#666] mt-0.5 sm:mt-1 font-mono truncate">Gross: {formatZAR(totalGrossRevenue)}</p>
+            {isAuthenticated ? (
+              <>
+                <h2 className="text-lg sm:text-xl lg:text-2xl font-light text-[#D4AF37] font-mono truncate">
+                  {formatZAR(paidRevenue > 0 ? paidRevenue : totalGrossRevenue)}
+                </h2>
+                <p className="text-[9px] sm:text-[10px] text-[#666] mt-0.5 sm:mt-1 font-mono truncate">Gross: {formatZAR(totalGrossRevenue)}</p>
+              </>
+            ) : (
+              <div>
+                <span className="text-sm font-bold text-amber-500 font-mono block">PROTECTED</span>
+                <button
+                  type="button"
+                  onClick={openUnlockModal}
+                  className="text-[10px] text-[#D4AF37] hover:underline font-mono mt-0.5 cursor-pointer flex items-center gap-1"
+                >
+                  <Lock className="w-2.5 h-2.5" /> Unlock to view
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -188,7 +241,7 @@ export default function Dashboard() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
             <div>
               <h3 className="text-xs font-bold uppercase tracking-widest text-white">Sales Volume & Orders</h3>
-              <p className="text-[11px] text-[#666] font-mono mt-0.5">REAL SUPABASE ORDER REVENUE VOLUME</p>
+              <p className="text-[11px] text-[#666] font-mono mt-0.5">REVENUE VOLUME OVERVIEW</p>
             </div>
             <div className="flex items-center gap-3 text-xs font-mono">
               <span className="flex items-center gap-1.5 text-[#D4AF37]">
@@ -199,7 +252,23 @@ export default function Dashboard() {
           </div>
           
           <div className="h-56 sm:h-64 w-full flex items-center justify-center min-w-0">
-            {loadingOrders ? (
+            {!isAuthenticated ? (
+              <div className="text-center py-8 px-4 border border-dashed border-[#222] w-full rounded bg-[#0D0D0D]">
+                <ShieldCheck className="w-8 h-8 text-[#D4AF37] mx-auto mb-2" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white">ADMIN AUTHORIZATION REQUIRED</h4>
+                <p className="text-[11px] text-[#777] font-mono mt-1 max-w-sm mx-auto">
+                  Authenticate to view real-time sales telemetry, order volume, and revenue metrics.
+                </p>
+                <button
+                  type="button"
+                  onClick={openUnlockModal}
+                  className="mt-3 px-4 py-1.5 min-h-[36px] bg-[#D4AF37] hover:bg-[#B3932F] text-black font-bold uppercase text-xs rounded-xs font-mono inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <Unlock className="w-3.5 h-3.5 text-black" />
+                  <span>Unlock Admin</span>
+                </button>
+              </div>
+            ) : loadingOrders ? (
               <RefreshCw className="w-6 h-6 text-[#D4AF37] animate-spin" />
             ) : chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -293,7 +362,7 @@ export default function Dashboard() {
         <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-[#1F1F1F] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#151515]">
           <div>
             <h3 className="text-xs font-bold uppercase tracking-widest text-white">Recent Orders & OTC Dispatch</h3>
-            <p className="text-[11px] text-[#666] font-mono">LIVE SUPABASE STORE ORDERS QUEUE</p>
+            <p className="text-[11px] text-[#666] font-mono">STORE ORDERS QUEUE</p>
           </div>
           <Link 
             href="/admin/orders" 
@@ -303,10 +372,26 @@ export default function Dashboard() {
           </Link>
         </div>
         
-        {loadingOrders ? (
+        {!isAuthenticated ? (
+          <div className="py-12 text-center px-4">
+            <ShieldCheck className="w-8 h-8 text-[#D4AF37] mx-auto mb-2" />
+            <h4 className="text-xs font-bold uppercase tracking-wider text-white">ADMIN AUTHORIZATION REQUIRED</h4>
+            <p className="text-[11px] text-[#777] font-mono mt-1 max-w-sm mx-auto">
+              Customer orders, recipient contact info, and OTC dispatch controls are protected.
+            </p>
+            <button
+              type="button"
+              onClick={openUnlockModal}
+              className="mt-3 px-4 py-1.5 min-h-[36px] bg-[#D4AF37] hover:bg-[#B3932F] text-black font-bold uppercase text-xs rounded-xs font-mono inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Unlock className="w-3.5 h-3.5 text-black" />
+              <span>Unlock Admin</span>
+            </button>
+          </div>
+        ) : loadingOrders ? (
           <div className="py-12 text-center text-xs font-mono text-[#888]">
             <RefreshCw className="w-5 h-5 text-[#D4AF37] animate-spin mx-auto mb-2" />
-            Loading real orders from Supabase...
+            Loading orders...
           </div>
         ) : orders.length > 0 ? (
           <>

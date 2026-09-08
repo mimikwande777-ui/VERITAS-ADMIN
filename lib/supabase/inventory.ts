@@ -9,6 +9,21 @@ export interface StockUpdateResult {
   error?: string;
 }
 
+async function getClientAuthHeaders(): Promise<Record<string, string>> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const client = getSupabaseClient();
+    if (!client) return {};
+    const { data: { session } } = await client.auth.getSession();
+    if (session?.access_token) {
+      return { Authorization: `Bearer ${session.access_token}` };
+    }
+  } catch {
+    // ignore
+  }
+  return {};
+}
+
 /**
  * Updates stock quantity for an individual variant in Supabase.
  * Validates integer >= 0, preserves all other fields, logs in development, and re-fetches updated variant.
@@ -18,12 +33,58 @@ export async function updateVariantStockInSupabase(
   newQuantity: number,
   threshold?: number
 ): Promise<StockUpdateResult> {
+  const safeQuantity = Math.max(0, Math.floor(Number(newQuantity) || 0));
+
+  // 1. Browser environment: Route through authorized admin API
+  if (typeof window !== 'undefined') {
+    try {
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch('/api/admin/inventory', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'update',
+          variantId,
+          quantity: safeQuantity,
+          threshold,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        return {
+          success: false,
+          error: res.status === 401 || res.status === 403 
+            ? 'Admin authorization required' 
+            : (errData.error || `Server error (${res.status})`),
+        };
+      }
+
+      const data = await res.json();
+      return data;
+    } catch (apiErr: any) {
+      return { success: false, error: apiErr?.message || 'Network error updating inventory' };
+    }
+  }
+
+  // 2. Server environment: Use server-only service role functions
+  if (typeof window === 'undefined') {
+    try {
+      const { serverUpdateVariantStockInSupabase } = await import('./inventory-server');
+      return await serverUpdateVariantStockInSupabase(variantId, safeQuantity, threshold);
+    } catch {
+      // Proceed to direct client fallback
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) {
     return { success: false, error: 'Database connection is not configured.' };
   }
-
-  const safeQuantity = Math.max(0, Math.floor(Number(newQuantity) || 0));
 
   try {
     // 1. Fetch current variant to check existence and old stock
@@ -31,7 +92,7 @@ export async function updateVariantStockInSupabase(
       .from('product_variants')
       .select('*')
       .eq('id', variantId)
-      .single();
+      .maybeSingle();
 
     if (fetchErr || !existing) {
       if (process.env.NODE_ENV !== 'production') {
@@ -58,13 +119,12 @@ export async function updateVariantStockInSupabase(
       patch.low_stock_threshold = Math.max(1, Math.floor(Number(threshold) || 5));
     }
 
-    // 3. Perform update
-    const { data: updatedData, error: updateErr } = await client
+    // 3. Perform update (using select('*') instead of .single() to avoid PGRST116 single-coercion crash on 0 rows)
+    const { data: updatedRows, error: updateErr } = await client
       .from('product_variants')
       .update(patch)
       .eq('id', variantId)
-      .select('*')
-      .single();
+      .select('*');
 
     if (updateErr) {
       if (process.env.NODE_ENV !== 'production') {
@@ -85,12 +145,30 @@ export async function updateVariantStockInSupabase(
       };
     }
 
+    if (!updatedRows || updatedRows.length === 0) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[INVENTORY SAVE DIAGNOSTICS - REJECTED (0 ROWS)]', {
+          variantId,
+          currentDatabaseQuantity: oldStock,
+          requestedQuantity: safeQuantity,
+          reason: 'RLS policy rejected update or variant row not found',
+        });
+      }
+      return {
+        success: false,
+        oldStock,
+        error: 'Database rejected the update: 0 rows modified. Row-Level Security policy may restrict mutations.',
+      };
+    }
+
+    const updatedData = updatedRows[0];
+
     // 4. MANDATORY RE-READ: Immediately query the same variant again to verify persistence
     const { data: verifiedRow, error: reReadErr } = await client
       .from('product_variants')
       .select('*')
       .eq('id', variantId)
-      .single();
+      .maybeSingle();
 
     const verifiedStock = verifiedRow ? Number(verifiedRow.stock_quantity) : null;
 
@@ -151,6 +229,51 @@ export async function adjustVariantStockInSupabase(
   variantId: string,
   delta: number
 ): Promise<StockUpdateResult> {
+  // 1. Browser environment: Route through authorized admin API
+  if (typeof window !== 'undefined') {
+    try {
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch('/api/admin/inventory', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'adjust',
+          variantId,
+          delta,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        return {
+          success: false,
+          error: res.status === 401 || res.status === 403
+            ? 'Admin authorization required'
+            : (errData.error || `Server error (${res.status})`),
+        };
+      }
+
+      const data = await res.json();
+      return data;
+    } catch (apiErr: any) {
+      return { success: false, error: apiErr?.message || 'Network error adjusting inventory' };
+    }
+  }
+
+  // 2. Server environment: Use server-only service role functions
+  if (typeof window === 'undefined') {
+    try {
+      const { serverAdjustVariantStockInSupabase } = await import('./inventory-server');
+      return await serverAdjustVariantStockInSupabase(variantId, delta);
+    } catch {
+      // Proceed to direct client fallback
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) {
     return { success: false, error: 'Database connection is not configured.' };
@@ -162,7 +285,7 @@ export async function adjustVariantStockInSupabase(
       .from('product_variants')
       .select('*')
       .eq('id', variantId)
-      .single();
+      .maybeSingle();
 
     if (fetchErr || !existing) {
       return { 
@@ -174,16 +297,15 @@ export async function adjustVariantStockInSupabase(
     const oldStock = Number(existing.stock_quantity) || 0;
     const newStock = Math.max(0, oldStock + delta);
 
-    // 2. Perform atomic database update
-    const { data: updatedData, error: updateErr } = await client
+    // 2. Perform atomic database update (using select('*') instead of .single() to avoid PGRST116 single-coercion crash on 0 rows)
+    const { data: updatedRows, error: updateErr } = await client
       .from('product_variants')
       .update({
         stock_quantity: newStock,
         updated_at: new Date().toISOString(),
       })
       .eq('id', variantId)
-      .select('*')
-      .single();
+      .select('*');
 
     if (updateErr) {
       if (process.env.NODE_ENV !== 'production') {
@@ -205,12 +327,31 @@ export async function adjustVariantStockInSupabase(
       };
     }
 
+    if (!updatedRows || updatedRows.length === 0) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[INVENTORY ADJUST DIAGNOSTICS - REJECTED (0 ROWS)]', {
+          variantId,
+          currentDatabaseQuantity: oldStock,
+          delta,
+          requestedQuantity: newStock,
+          reason: 'RLS policy rejected update or variant row not found',
+        });
+      }
+      return {
+        success: false,
+        oldStock,
+        error: 'Database rejected the adjust: 0 rows modified. Row-Level Security policy may restrict mutations.',
+      };
+    }
+
+    const updatedData = updatedRows[0];
+
     // 3. MANDATORY RE-READ: Immediately query the same variant again to verify persistence
     const { data: verifiedRow, error: reReadErr } = await client
       .from('product_variants')
       .select('*')
       .eq('id', variantId)
-      .single();
+      .maybeSingle();
 
     const verifiedStock = verifiedRow ? Number(verifiedRow.stock_quantity) : null;
 

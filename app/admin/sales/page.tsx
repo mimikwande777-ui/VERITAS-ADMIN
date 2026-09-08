@@ -303,24 +303,6 @@ ${orders.map(o => `${o.id} | Date: ${o.date} | Total: ${formatZAR(o.total)} | Pa
         </div>
       )}
 
-      {/* HONESTY BANNER */}
-      <div className="bg-[#121212] border border-[#262626] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
-        <div className="flex items-center gap-2.5 text-[#D4AF37]">
-          <BarChart3 className="w-4 h-4 shrink-0" />
-          <span>
-            <strong className="text-white">HONEST TELEMETRY:</strong> Metrics & charts strictly calculated from {totalOrdersCount} verified Supabase order record{totalOrdersCount === 1 ? '' : 's'}.
-          </span>
-        </div>
-        <button 
-          onClick={loadRealSalesData}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1A1A1A] hover:bg-[#262626] text-white rounded border border-[#333] transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin text-[#D4AF37]' : ''}`} />
-          Reload Live Data
-        </button>
-      </div>
-
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -328,6 +310,14 @@ ${orders.map(o => `${o.id} | Date: ${o.date} | Total: ${formatZAR(o.total)} | Pa
           <p className="text-xs text-[#888] font-mono mt-1">REAL-TIME REVENUE BREAKDOWNS, AOV, VELOCITY & UNIT PERFORMANCE</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button 
+            onClick={loadRealSalesData}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#1A1A1A] hover:bg-[#262626] text-white text-xs font-mono rounded border border-[#333] transition-colors disabled:opacity-50 min-h-[38px]"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#D4AF37]' : ''}`} />
+            Refresh
+          </button>
           <div className="bg-[#111] border border-[#333] rounded p-1 flex items-center gap-1">
             {(['7D', '30D', '90D', '1Y'] as const).map(range => (
               <button

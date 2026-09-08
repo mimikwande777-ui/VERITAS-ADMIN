@@ -1,13 +1,14 @@
 'use client';
 
 /**
- * TEMPORARILY DISABLED ADMIN AUTH
- * RESTORE BEFORE PUBLIC PRODUCTION USE
+ * VERITAS ADMIN AUTHENTICATION & AUTHORIZATION CONTEXT
  * 
- * Admin authentication gate is bypassed:
- * - Admin routes and UI open directly without sign-in requirements.
- * - Current session defaults to Super Admin with full management permissions.
- * - Under-the-hood Supabase client and session listeners remain intact for future restoration.
+ * Supports:
+ * - Direct dashboard shell entry without initial login wall
+ * - Modal-based "Unlock Admin" flow backed by real Supabase Authentication
+ * - Server-side verification via requireAdmin() querying public.admin_users
+ * - Session persistence across page reloads and installed PWA
+ * - Instant "Lock Admin / Sign Out" capability
  */
 
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
@@ -17,35 +18,54 @@ import {
   CanonicalAdminRole, 
   RolePermissions, 
   CANONICAL_ROLE_PERMISSIONS, 
-  CURRENT_DEV_ADMIN, 
   normalizeAdminRole 
 } from './auth-types';
 import { recordAuditLog } from './supabase/audit';
 
 interface AuthContextType {
   user: AdminUser | null;
-  role: CanonicalAdminRole;
+  role: CanonicalAdminRole | null;
   permissions: RolePermissions;
   isLoading: boolean;
   isAuthenticated: boolean;
-  isDevBypass: boolean;
-  toggleDevBypass: (enabled: boolean) => void;
+  isUnlockModalOpen: boolean;
+  openUnlockModal: () => void;
+  closeUnlockModal: () => void;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   hasAccess: (permission: keyof RolePermissions) => boolean;
 }
 
+const EMPTY_PERMISSIONS: RolePermissions = {
+  canManageProducts: false,
+  canPublishProducts: false,
+  canManageInventory: false,
+  canManageOrders: false,
+  canSendToOTC: false,
+  canViewSalesAnalytics: false,
+  canManageCategories: false,
+  canManageCollections: false,
+  canManageMedia: false,
+  canManageSettings: false,
+  canManageDiscounts: false,
+  canViewCustomers: false,
+  canViewActivityLog: false,
+  canManageAdmins: false,
+};
+
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
-  // TEMPORARILY DISABLED ADMIN AUTH: Default directly to active super_admin without loading delay
-  const [user, setUser] = useState<AdminUser | null>(CURRENT_DEV_ADMIN);
-  const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState<AdminUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
 
-  // Development bypass state (auth disabled)
-  const isDevBypass = true;
-  const toggleDevBypass = useCallback((_enabled: boolean) => {
-    // No-op while auth gate is temporarily disabled
+  const openUnlockModal = useCallback(() => {
+    setIsUnlockModalOpen(true);
+  }, []);
+
+  const closeUnlockModal = useCallback(() => {
+    setIsUnlockModalOpen(false);
   }, []);
 
   // Initialize and listen to Supabase Auth state
@@ -54,10 +74,10 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     const client = getSupabaseClient();
 
     const resolveAdminFromSession = async (sessionUser: any): Promise<AdminUser | null> => {
-      const email = sessionUser.email || '';
+      const email = (sessionUser.email || '').trim().toLowerCase();
       let role: CanonicalAdminRole | null = null;
 
-      // Verify authoritative role from public.admin_users if table exists
+      // Verify authoritative role from public.admin_users
       if (client) {
         try {
           const { data: adminRecord } = await client
@@ -72,7 +92,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
             const { data: adminEmailRecord } = await client
               .from('admin_users')
               .select('role')
-              .eq('email', email.trim().toLowerCase())
+              .eq('email', email)
               .maybeSingle();
             if (adminEmailRecord?.role) {
               role = normalizeAdminRole(adminEmailRecord.role);
@@ -88,7 +108,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
           role = normalizeAdminRole(sessionUser.app_metadata.role);
         } else if (sessionUser.user_metadata?.role) {
           role = normalizeAdminRole(sessionUser.user_metadata.role);
-        } else if (email.trim().toLowerCase() === 'othembela28@gmail.com' || email.trim().toLowerCase() === 'mimikwande777@gmail.com') {
+        } else if (email === 'othembela28@gmail.com' || email === 'mimikwande777@gmail.com') {
           role = 'super_admin';
         }
       }
@@ -104,7 +124,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       return {
         id: sessionUser.id,
         name,
-        email,
+        email: sessionUser.email || email,
         role,
         createdAt: sessionUser.created_at || new Date().toISOString(),
         lastActive: 'Just now',
@@ -114,7 +134,10 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     const initAuth = async () => {
       try {
         if (!client) {
-          if (mounted) setIsLoading(false);
+          if (mounted) {
+            setUser(null);
+            setIsLoading(false);
+          }
           return;
         }
 
@@ -123,25 +146,17 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           const adminUser = await resolveAdminFromSession(session.user);
           if (adminUser) {
-            if (mounted) {
-              setUser(adminUser);
-              document.cookie = 'veritas_admin_session=active; path=/; max-age=604800; SameSite=Lax';
-            }
+            if (mounted) setUser(adminUser);
           } else {
-            // Default to super_admin while auth gate is disabled
-            if (mounted) setUser(CURRENT_DEV_ADMIN);
-            document.cookie = 'veritas_admin_session=bypass; path=/; max-age=86400; SameSite=Lax';
+            // User exists in auth but not in admin_users table
+            if (mounted) setUser(null);
           }
         } else {
-          // Default to super_admin while auth gate is disabled
-          if (mounted) {
-            setUser(CURRENT_DEV_ADMIN);
-            document.cookie = 'veritas_admin_session=bypass; path=/; max-age=86400; SameSite=Lax';
-          }
+          if (mounted) setUser(null);
         }
       } catch (err) {
         console.error('Error initializing Supabase Auth:', err);
-        if (mounted) setUser(CURRENT_DEV_ADMIN);
+        if (mounted) setUser(null);
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -155,14 +170,11 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
           const adminUser = await resolveAdminFromSession(session.user);
           if (adminUser) {
             setUser(adminUser);
-            document.cookie = 'veritas_admin_session=active; path=/; max-age=604800; SameSite=Lax';
           } else {
-            setUser(CURRENT_DEV_ADMIN);
-            document.cookie = 'veritas_admin_session=bypass; path=/; max-age=86400; SameSite=Lax';
+            setUser(null);
           }
         } else {
-          setUser(CURRENT_DEV_ADMIN);
-          document.cookie = 'veritas_admin_session=bypass; path=/; max-age=86400; SameSite=Lax';
+          setUser(null);
         }
         setIsLoading(false);
       });
@@ -176,7 +188,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [isDevBypass]);
+  }, []);
 
   const signIn = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
@@ -186,7 +198,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
       return { 
         success: false, 
-        error: 'Supabase authentication is not configured. Please define NEXT_PUBLIC_SUPABASE_ANON_KEY in your environment settings.' 
+        error: 'Supabase authentication is not configured. Please define NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.' 
       };
     }
 
@@ -198,12 +210,12 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         setIsLoading(false);
-        return { success: false, error: error.message || 'Invalid credentials' };
+        return { success: false, error: error.message || 'Invalid administrator credentials' };
       }
 
       if (data.session?.user) {
         let role: CanonicalAdminRole | null = null;
-        const emailAddress = data.session.user.email || email;
+        const emailAddress = (data.session.user.email || email).trim().toLowerCase();
 
         try {
           const { data: adminRecord } = await client
@@ -218,7 +230,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
             const { data: adminEmailRecord } = await client
               .from('admin_users')
               .select('role')
-              .eq('email', emailAddress.trim().toLowerCase())
+              .eq('email', emailAddress)
               .maybeSingle();
             if (adminEmailRecord?.role) {
               role = normalizeAdminRole(adminEmailRecord.role);
@@ -233,15 +245,19 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
             role = normalizeAdminRole(data.session.user.app_metadata.role);
           } else if (data.session.user.user_metadata?.role) {
             role = normalizeAdminRole(data.session.user.user_metadata.role);
-          } else if (emailAddress.trim().toLowerCase() === 'othembela28@gmail.com' || emailAddress.trim().toLowerCase() === 'mimikwande777@gmail.com') {
+          } else if (emailAddress === 'othembela28@gmail.com' || emailAddress === 'mimikwande777@gmail.com') {
             role = 'super_admin';
           }
         }
 
         if (!role) {
           await client.auth.signOut();
+          setUser(null);
           setIsLoading(false);
-          return { success: false, error: 'Unauthorized: User does not exist in public.admin_users.' };
+          return { 
+            success: false, 
+            error: 'Forbidden: Authenticated user is not registered in public.admin_users.' 
+          };
         }
 
         const name = data.session.user.user_metadata?.full_name || email.split('@')[0].toUpperCase();
@@ -256,7 +272,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         };
 
         setUser(adminUser);
-        document.cookie = 'veritas_admin_session=active; path=/; max-age=604800; SameSite=Lax';
+        setIsUnlockModalOpen(false);
 
         // Record live audit log
         void recordAuditLog({
@@ -267,6 +283,10 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
           actorEmail: email,
           actorRole: role,
         });
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('veritas_admin_auth_changed'));
+        }
 
         setIsLoading(false);
         return { success: true };
@@ -289,7 +309,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     // Record audit log
     void recordAuditLog({
       action: 'auth.logout',
-      actionLabel: `Admin signed out: ${currentUserEmail}`,
+      actionLabel: `Admin signed out / locked: ${currentUserEmail}`,
       targetType: 'auth',
       actorEmail: currentUserEmail,
       actorRole: currentUserRole,
@@ -302,29 +322,24 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error('SignOut error:', err);
     } finally {
-      setUser(CURRENT_DEV_ADMIN);
-      // Ensure bypass cookie is set
+      setUser(null);
+      setIsUnlockModalOpen(false);
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('veritas_admin_dev_bypass');
-        document.cookie = 'veritas_admin_session=bypass; path=/; max-age=86400; SameSite=Lax';
+        window.dispatchEvent(new CustomEvent('veritas_admin_auth_changed'));
       }
       setIsLoading(false);
-      if (typeof window !== 'undefined') {
-        window.location.href = '/admin/dashboard';
-      }
     }
   }, [user]);
 
-  // TEMPORARILY DISABLED ADMIN AUTH: Active Super Admin role and full access
-  const currentRole: CanonicalAdminRole = user?.role ? normalizeAdminRole(user.role) : 'super_admin';
-  const permissions: RolePermissions = CANONICAL_ROLE_PERMISSIONS.super_admin;
+  const currentRole: CanonicalAdminRole | null = user?.role ? normalizeAdminRole(user.role) : null;
+  const permissions: RolePermissions = currentRole ? CANONICAL_ROLE_PERMISSIONS[currentRole] : EMPTY_PERMISSIONS;
 
-  const hasAccess = useCallback((_permission: keyof RolePermissions): boolean => {
-    // All routes and features open while auth is temporarily disabled
-    return true;
-  }, []);
+  const hasAccess = useCallback((permission: keyof RolePermissions): boolean => {
+    if (!user || !currentRole) return false;
+    return !!CANONICAL_ROLE_PERMISSIONS[currentRole]?.[permission];
+  }, [user, currentRole]);
 
-  const isAuthenticated = true;
+  const isAuthenticated = Boolean(user && user.id);
 
   const contextValue = useMemo(() => ({
     user,
@@ -332,12 +347,13 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     permissions,
     isLoading,
     isAuthenticated,
-    isDevBypass,
-    toggleDevBypass,
+    isUnlockModalOpen,
+    openUnlockModal,
+    closeUnlockModal,
     signIn,
     signOut,
     hasAccess,
-  }), [user, currentRole, permissions, isLoading, isAuthenticated, isDevBypass, toggleDevBypass, signIn, signOut, hasAccess]);
+  }), [user, currentRole, permissions, isLoading, isAuthenticated, isUnlockModalOpen, openUnlockModal, closeUnlockModal, signIn, signOut, hasAccess]);
 
   return (
     <AuthContext.Provider value={contextValue}>
@@ -371,4 +387,5 @@ export async function getAdminAuthHeaders(): Promise<Record<string, string>> {
   }
   return {};
 }
+
 

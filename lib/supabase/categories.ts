@@ -12,11 +12,18 @@ export interface SupabaseCategoryRow {
 
 export async function fetchCategoriesFromSupabase(): Promise<SupabaseCategoryRow[]> {
   const client = getSupabaseClient();
-  if (!client) return [];
+  if (!client) {
+    throw new Error('CONFIGURATION ERROR: Supabase client is not configured (missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY).');
+  }
 
   try {
     const { data, error } = await client.from('categories').select('*').order('name');
-    if (error || !data) return [];
+    if (error) {
+      const isRLS = error.code === '42501' || error.message?.toLowerCase().includes('permission') || error.message?.toLowerCase().includes('policy');
+      const prefix = isRLS ? 'RLS / PERMISSION ERROR' : 'QUERY ERROR';
+      throw new Error(`${prefix}: ${error.message} (code: ${error.code || 'unknown'})`);
+    }
+    if (!data) return [];
     return data.map(d => ({
       id: d.id,
       title: d.name || 'Untitled Category',
@@ -25,8 +32,11 @@ export async function fetchCategoriesFromSupabase(): Promise<SupabaseCategoryRow
       description: d.description || '',
       created_at: d.created_at
     }));
-  } catch (err) {
-    return [];
+  } catch (err: any) {
+    if (err?.message?.startsWith('CONFIGURATION ERROR') || err?.message?.startsWith('RLS / PERMISSION ERROR') || err?.message?.startsWith('QUERY ERROR')) {
+      throw err;
+    }
+    throw new Error(`NETWORK ERROR: ${err?.message || 'Failed to connect to Supabase.'}`);
   }
 }
 

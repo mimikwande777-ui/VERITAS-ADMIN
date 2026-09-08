@@ -49,7 +49,7 @@ export default function CheckoutPage() {
     province: 'Gauteng',
     postalCode: '',
     notes: '',
-    paymentMethod: 'card'
+    paymentMethod: 'eft'
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,7 +81,6 @@ export default function CheckoutPage() {
         shippingAmount: shipping,
         total,
         paymentMethod: formData.paymentMethod,
-        paymentStatus: 'paid' as const,
         address: {
           addressLine1: formData.addressLine1,
           addressLine2: formData.addressLine2,
@@ -426,27 +425,13 @@ export default function CheckoutPage() {
                 <span>Payment & Verification (ZAR)</span>
               </h2>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <label className={`p-4 border rounded-xs cursor-pointer flex flex-col justify-between transition-all ${
-                  formData.paymentMethod === 'card' 
-                    ? 'border-[#D4AF37] bg-[#1A1A1A]' 
-                    : 'border-[#262626] bg-[#121212] hover:border-[#444]'
-                }`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="card"
-                      checked={formData.paymentMethod === 'card'}
-                      onChange={handleInputChange}
-                      className="accent-[#D4AF37]"
-                    />
-                    <CreditCard className="w-4 h-4 text-[#D4AF37]" />
-                  </div>
-                  <span className="text-xs font-bold uppercase text-white">Credit / Debit Card</span>
-                  <span className="text-[10px] text-[#777] font-mono mt-0.5">Visa, Mastercard</span>
-                </label>
+              {/* Online payment notice */}
+              <div className="p-3 bg-[#161616] border border-[#333] rounded-xs text-xs font-mono text-[#D4AF37] flex items-center gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-[#D4AF37] shrink-0" />
+                <span>Online payment is temporarily unavailable. Orders are secured via Bank Transfer / EFT reservation with payment pending.</span>
+              </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className={`p-4 border rounded-xs cursor-pointer flex flex-col justify-between transition-all ${
                   formData.paymentMethod === 'eft' 
                     ? 'border-[#D4AF37] bg-[#1A1A1A]' 
@@ -463,29 +448,20 @@ export default function CheckoutPage() {
                     />
                     <Building2 className="w-4 h-4 text-[#D4AF37]" />
                   </div>
-                  <span className="text-xs font-bold uppercase text-white">Instant EFT</span>
-                  <span className="text-[10px] text-[#777] font-mono mt-0.5">All SA Major Banks</span>
+                  <span className="text-xs font-bold uppercase text-white">Bank Transfer / EFT</span>
+                  <span className="text-[10px] text-[#777] font-mono mt-0.5">FNB, Standard Bank, Absa, Nedbank, Capitec</span>
                 </label>
 
-                <label className={`p-4 border rounded-xs cursor-pointer flex flex-col justify-between transition-all ${
-                  formData.paymentMethod === 'payfast' 
-                    ? 'border-[#D4AF37] bg-[#1A1A1A]' 
-                    : 'border-[#262626] bg-[#121212] hover:border-[#444]'
-                }`}>
+                <div className="p-4 border border-[#222] bg-[#101010]/60 rounded-xs flex flex-col justify-between opacity-50 cursor-not-allowed">
                   <div className="flex items-center justify-between mb-2">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="payfast"
-                      checked={formData.paymentMethod === 'payfast'}
-                      onChange={handleInputChange}
-                      className="accent-[#D4AF37]"
-                    />
-                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-amber-500/90 font-bold bg-amber-950/40 px-2 py-0.5 border border-amber-800/40 rounded-xs">
+                      Gateway Unavailable
+                    </span>
+                    <CreditCard className="w-4 h-4 text-[#666]" />
                   </div>
-                  <span className="text-xs font-bold uppercase text-white">PayFast Gateway</span>
-                  <span className="text-[10px] text-[#777] font-mono mt-0.5">Zero-fee processing</span>
-                </label>
+                  <span className="text-xs font-bold uppercase text-[#777]">Online Card / PayFast</span>
+                  <span className="text-[10px] text-[#555] font-mono mt-0.5">Online payment is temporarily unavailable</span>
+                </div>
               </div>
             </div>
           </div>

@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 
+import { FREE_SHIPPING_THRESHOLD_ZAR, STANDARD_SHIPPING_FEE_ZAR, calculateShippingFeeZAR } from './shipping';
+
 export interface CartItem {
   id: string; // composite key: `${productId}-${size}-${color}`
   productId: string;
@@ -139,11 +141,11 @@ export function useCartStore() {
   const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
   const subtotal = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   
-  // Free nationwide shipping in South Africa on orders R1,500 or more; otherwise flat R150
-  const freeShippingThreshold = 1500;
-  const shipping = subtotal >= freeShippingThreshold || items.length === 0 ? 0 : 150;
+  // Free nationwide courier shipping on all orders
+  const freeShippingThreshold = FREE_SHIPPING_THRESHOLD_ZAR;
+  const shipping = calculateShippingFeeZAR(subtotal, items.length);
   const total = subtotal + shipping;
-  const amountNeededForFreeShipping = Math.max(0, freeShippingThreshold - subtotal);
+  const amountNeededForFreeShipping = 0;
 
   return {
     items,

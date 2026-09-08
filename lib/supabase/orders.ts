@@ -16,6 +16,7 @@ import {
   getOrderStatusLabel
 } from './types';
 import { OrderRecord, OrderItemProduct } from '@/lib/mock-data';
+import { calculateShippingFeeZAR } from '@/lib/shipping';
 
 export interface AdminOrderFull {
   id: string; // Database UUID
@@ -125,14 +126,14 @@ export function mapDbOrderToOrderRecord(order: AdminOrderFull): OrderRecord {
  */
 export async function fetchFullOrdersFromSupabase(customClient?: any): Promise<{ orders: AdminOrderFull[]; records: OrderRecord[]; error: string | null }> {
   const config = getSupabaseEnvConfig();
-  console.log('[SUPABASE DEBUG] Supabase project URL:', config.url);
-  console.log('[SUPABASE DEBUG] Orders query started');
 
   const client = customClient || getSupabaseClient();
   if (!client) {
-    const errMsg = 'Supabase client is not configured';
-    console.error('[SUPABASE DEBUG] Supabase error:', errMsg);
-    return { orders: [], records: [], error: errMsg };
+    return { 
+      orders: [], 
+      records: [], 
+      error: 'Supabase client is not configured (missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY).' 
+    };
   }
 
   try {
@@ -142,8 +143,14 @@ export async function fetchFullOrdersFromSupabase(customClient?: any): Promise<{
       .order('created_at', { ascending: false });
 
     if (ordersErr) {
-      console.error('[SUPABASE DEBUG] Supabase error:', ordersErr);
-      return { orders: [], records: [], error: ordersErr.message || 'Failed to query orders table' };
+      console.error('[SUPABASE] Orders query error:', ordersErr);
+      const isRLS = ordersErr.code === '42501' || ordersErr.message?.toLowerCase().includes('permission') || ordersErr.message?.toLowerCase().includes('policy');
+      const errType = isRLS ? 'RLS / Permission Error' : 'Database Query Error';
+      return { 
+        orders: [], 
+        records: [], 
+        error: `${errType}: ${ordersErr.message || 'Unable to retrieve orders from Supabase.'}` 
+      };
     }
 
     const orderCount = rawOrders?.length || 0;
@@ -152,8 +159,6 @@ export async function fetchFullOrdersFromSupabase(customClient?: any): Promise<{
     console.log('[SUPABASE DEBUG] Order numbers returned:', orderNumbers);
 
     if (orderCount === 0) {
-      console.log('[SUPABASE DEBUG] Order items count: 0');
-      console.log('[SUPABASE DEBUG] Address count: 0');
       console.log('[SUPABASE DEBUG] Query completed successfully with 0 orders');
       return { orders: [], records: [], error: null };
     }
@@ -236,9 +241,10 @@ export async function fetchFullOrdersFromSupabase(customClient?: any): Promise<{
  */
 export async function updateOrderStatusInSupabase(
   dbOrderId: string, 
-  updates: { payment_status?: string; order_status?: string; fulfilment_status?: string }
+  updates: { payment_status?: string; order_status?: string; fulfilment_status?: string },
+  customClient?: any
 ): Promise<{ success: boolean; error: string | null }> {
-  const client = getSupabaseClient();
+  const client = customClient || getSupabaseClient();
   if (!client) {
     console.error('[STATUS UPDATE ERROR] Supabase client is unconfigured.');
     return { success: false, error: 'Supabase client is not configured' };
@@ -370,7 +376,6 @@ export interface CreateOrderPayload {
   shippingAmount: number;
   total: number;
   paymentMethod?: string;
-  paymentStatus?: 'pending' | 'paid';
   address: {
     addressLine1: string;
     addressLine2?: string;
@@ -488,7 +493,7 @@ export async function createOrderInSupabase(
     }
 
     // Authoritative totals calculation
-    const calculatedShipping = calculatedSubtotal >= 1000 ? 0 : 150;
+    const calculatedShipping = calculateShippingFeeZAR(calculatedSubtotal, validatedItems.length);
     const calculatedTotal = calculatedSubtotal + calculatedShipping;
 
     // Generate canonical Veritas order number: VER-YYYY-XXXXXX

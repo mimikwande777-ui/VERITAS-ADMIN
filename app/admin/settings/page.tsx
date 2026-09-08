@@ -8,7 +8,7 @@ export default function SettingsPage() {
   const [brandName, setBrandName] = useState('VERITAS');
   const [supportEmail, setSupportEmail] = useState('support@veritas.co.za');
   const [businessEmail, setBusinessEmail] = useState('contact@veritas.co.za');
-  const [announcement, setAnnouncement] = useState('FREE EXPRESS SHIPPING ACROSS SOUTH AFRICA ON ORDERS OVER R1,500');
+  const [announcement, setAnnouncement] = useState('COMPLIMENTARY EXPRESS SHIPPING ACROSS SOUTH AFRICA ON ALL ORDERS');
   const [shippingDisplay, setShippingDisplay] = useState('Standard Delivery via OTC Logistics (3-5 Business Days)');
   const [storeStatus, setStoreStatus] = useState('Online & Taking Orders');
   const [instagram, setInstagram] = useState('https://instagram.com/veritas.apparel');

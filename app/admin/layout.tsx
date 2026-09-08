@@ -11,9 +11,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, Search, X } from 'lucide-react';
+import { Menu, Search, X, Lock, Unlock, LogOut, ShieldCheck } from 'lucide-react';
 import { AdminSidebar } from '@/components/admin-sidebar';
 import { AdminAuthProvider, useAdminAuth } from '@/lib/auth-context';
+import { AdminUnlockModal } from '@/components/admin-unlock-modal';
 import { PWAOfflineBanner } from '@/components/pwa-offline-banner';
 import { PWAUpdateBanner } from '@/components/pwa-update-banner';
 import { PWAInstallButton } from '@/components/pwa-install-button';
@@ -24,7 +25,7 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const { user, role } = useAdminAuth();
+  const { user, role, isAuthenticated, openUnlockModal, signOut } = useAdminAuth();
 
   // 1. If user navigates to /admin/login directly, redirect immediately to /admin/dashboard
   useEffect(() => {
@@ -157,23 +158,53 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
               <PWAInstallButton variant="header" />
             </div>
             
-            {/* Authenticated Admin Identity Badge */}
-            <div className="flex items-center gap-1.5 sm:gap-2 bg-[#141414] border border-[#262626] px-2 sm:px-2.5 py-1 rounded-xs">
-              <div className="w-6 h-6 rounded-xs bg-[#222] border border-[#333] flex items-center justify-center text-[10px] font-bold text-[#D4AF37] shrink-0">
-                SA
-              </div>
-              <div className="hidden lg:block text-left">
-                <div className="text-[11px] font-bold text-white font-mono leading-tight truncate max-w-[130px]">
-                  {user?.email || 'admin@veritas.internal'}
+            {/* Authenticated vs Unlocked Badge & Controls */}
+            {isAuthenticated ? (
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2 bg-[#141414] border border-[#262626] px-2 sm:px-2.5 py-1 rounded-xs">
+                  <div className="w-6 h-6 rounded-xs bg-[#222] border border-[#333] flex items-center justify-center text-[10px] font-bold text-[#D4AF37] shrink-0">
+                    {role === 'super_admin' ? 'SA' : role === 'admin' ? 'AD' : 'MG'}
+                  </div>
+                  <div className="hidden lg:block text-left">
+                    <div className="text-[11px] font-bold text-white font-mono leading-tight truncate max-w-[130px]">
+                      {user?.email || 'admin@veritas.internal'}
+                    </div>
+                    <div className="text-[9px] font-mono uppercase tracking-wider text-[#888]">
+                      {role ? role.replace('_', ' ') : 'Administrator'}
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded uppercase hidden sm:inline bg-amber-950/60 text-[#D4AF37] border border-[#D4AF37]/40">
+                    {role ? role.replace('_', ' ') : 'Admin'}
+                  </span>
                 </div>
-                <div className="text-[9px] font-mono uppercase tracking-wider text-[#888]">
-                  Super Admin
-                </div>
+
+                <button
+                  type="button"
+                  onClick={() => { void signOut(); }}
+                  className="min-h-[36px] min-w-[36px] sm:min-h-[44px] sm:px-3 px-2 bg-[#161616] hover:bg-red-950/30 hover:border-red-900/40 border border-[#262626] rounded-xs text-[#888] hover:text-red-400 flex items-center gap-1.5 text-xs font-mono transition-colors cursor-pointer"
+                  title="Lock Admin / Sign Out"
+                  aria-label="Lock Admin / Sign Out"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline text-[11px]">Lock</span>
+                </button>
               </div>
-              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded uppercase hidden sm:inline bg-amber-950/60 text-[#D4AF37] border border-[#D4AF37]/40">
-                {role ? role.replace('_', ' ') : 'Super Admin'}
-              </span>
-            </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-mono text-[#777] bg-[#141414] border border-[#222] px-2.5 py-1 rounded-xs">
+                  <Lock className="w-3 h-3 text-[#888]" />
+                  <span>Admin Locked</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={openUnlockModal}
+                  className="min-h-[36px] sm:min-h-[44px] px-3 sm:px-4 bg-[#D4AF37] hover:bg-[#B3932F] active:scale-95 text-black font-bold uppercase text-xs font-mono tracking-wider rounded-xs flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                >
+                  <Unlock className="w-3.5 h-3.5 text-black" />
+                  <span>Unlock Admin</span>
+                </button>
+              </div>
+            )}
           </div>
         </header>
 
@@ -183,6 +214,9 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
             {children}
           </div>
         </main>
+
+        {/* ADMIN UNLOCK MODAL */}
+        <AdminUnlockModal />
 
         {/* MOBILE BOTTOM NAVIGATION BAR */}
         <AdminMobileBottomNav onOpenMenu={() => setIsMobileMenuOpen(true)} />

@@ -157,7 +157,7 @@ export default function CollectionsPage() {
         <div>
           <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Collections & Drops</h1>
           <p className="text-xs text-[#888] font-mono mt-1">
-            SUPABASE COLLECTIONS TABLE • CURATED DROPS & PRODUCT GROUPS
+            CURATED DROPS & PRODUCT GROUPS
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -165,7 +165,7 @@ export default function CollectionsPage() {
             onClick={loadData}
             disabled={loading}
             className="p-2 border border-[#333] bg-[#111] hover:bg-[#1A1A1A] text-[#888] hover:text-white rounded transition-colors"
-            title="Reload from Supabase"
+            title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#D4AF37]' : ''}`} />
           </button>
@@ -282,7 +282,7 @@ export default function CollectionsPage() {
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-xs text-[#888] font-mono">
                     <RefreshCw className="w-6 h-6 animate-spin text-[#D4AF37] mx-auto mb-2" />
-                    Querying Supabase collections...
+                    Loading collections...
                   </td>
                 </tr>
               ) : collections.length === 0 ? (
@@ -292,7 +292,7 @@ export default function CollectionsPage() {
                       <div className="w-12 h-12 rounded bg-[#1A1A1A] border border-[#262626] flex items-center justify-center mx-auto text-[#777]">
                         <Layers className="w-6 h-6" />
                       </div>
-                      <h3 className="text-sm font-bold uppercase tracking-wider text-white font-mono">NO COLLECTIONS FOUND IN SUPABASE</h3>
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-white font-mono">NO COLLECTIONS CREATED YET</h3>
                       <p className="text-xs text-[#888] font-mono">
                         Create drop capsules to organize your inventory into distinct releases.
                       </p>

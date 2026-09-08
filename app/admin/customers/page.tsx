@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Users, Search, Mail, Phone, ShoppingBag, RefreshCw, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Users, Search, Mail, Phone, RefreshCw, ShieldCheck, Unlock } from 'lucide-react';
 import { fetchFullOrdersFromSupabase } from '@/lib/supabase/orders';
 import { OrderRecord } from '@/lib/mock-data';
 import { formatZAR } from '@/lib/utils';
-import { getAdminAuthHeaders } from '@/lib/auth-context';
+import { getAdminAuthHeaders, useAdminAuth } from '@/lib/auth-context';
 
 export default function CustomersPage() {
+  const { isAuthenticated, openUnlockModal } = useAdminAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadCustomerData = async () => {
-    setLoading(true);
+  const loadCustomerData = useCallback(async () => {
     try {
       const authHeaders = await getAdminAuthHeaders();
       const res = await fetch(`/api/admin/orders?t=${Date.now()}`, { 
@@ -32,17 +32,34 @@ export default function CustomersPage() {
       setOrders(records);
     } catch (err) {
       console.error('Failed to load customer orders:', err);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      loadCustomerData();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
+    let active = true;
+    const initFetch = async () => {
+      if (active) {
+        await loadCustomerData();
+      }
+    };
+    initFetch();
+
+    const handleAuthChange = () => {
+      if (active) {
+        setLoading(true);
+        void loadCustomerData();
+      }
+    };
+
+    window.addEventListener('veritas_admin_auth_changed', handleAuthChange);
+    return () => {
+      active = false;
+      window.removeEventListener('veritas_admin_auth_changed', handleAuthChange);
+    };
+  }, [loadCustomerData]);
 
   // Extract unique customer records from actual orders in the database
   const customerMap = new Map<string, {
@@ -105,24 +122,6 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-6 pb-20">
-      {/* HONEST DERIVATION BANNER */}
-      <div className="bg-[#121212] border border-[#262626] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
-        <div className="flex items-center gap-2.5 text-[#D4AF37]">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>
-            <strong className="text-white">DERIVED FROM ORDERS:</strong> Customer entities are compiled in real-time from verified checkout entries and shipping manifests in Supabase.
-          </span>
-        </div>
-        <button 
-          onClick={loadCustomerData}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1A1A1A] hover:bg-[#262626] text-white rounded border border-[#333] transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin text-[#D4AF37]' : ''}`} />
-          Refresh
-        </button>
-      </div>
-
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Customers</h1>
@@ -130,6 +129,14 @@ export default function CustomersPage() {
             IDENTIFIED PATRONS & BUYERS ACROSS VERIFIED VERITAS ORDERS
           </p>
         </div>
+        <button 
+          onClick={loadCustomerData}
+          disabled={loading}
+          className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#1A1A1A] hover:bg-[#262626] text-white text-xs font-mono rounded border border-[#333] transition-colors disabled:opacity-50 min-h-[38px]"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#D4AF37]' : ''}`} />
+          Refresh
+        </button>
       </div>
 
       <div className="bg-[#111] border border-[#1F1F1F] shadow-sm">
@@ -151,14 +158,40 @@ export default function CustomersPage() {
 
         {/* 1. MOBILE RESPONSIVE STACKED CARDS (< md) */}
         <div className="block md:hidden divide-y divide-[#1F1F1F]">
-          {loading ? (
+          {!isAuthenticated ? (
+            <div className="p-10 text-center bg-[#111] text-xs font-mono space-y-3">
+              <div className="w-12 h-12 rounded-full bg-amber-950/40 border border-amber-800/40 text-[#D4AF37] flex items-center justify-center mx-auto">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <p className="font-bold text-sm uppercase tracking-wider text-white">ADMIN AUTHORIZATION REQUIRED</p>
+              <p className="text-[#888] max-w-sm mx-auto">
+                Customer profiles, contact coordinates, and lifetime value records are protected.
+              </p>
+              <button
+                type="button"
+                onClick={openUnlockModal}
+                className="inline-flex items-center gap-2 px-5 py-2.5 min-h-[44px] bg-[#D4AF37] hover:bg-[#B3932F] text-black font-bold uppercase text-xs rounded-xs font-mono cursor-pointer shadow-md"
+              >
+                <Unlock className="w-4 h-4 text-black" />
+                <span>Unlock Admin</span>
+              </button>
+            </div>
+          ) : loading ? (
             <div className="p-8 text-center text-xs text-[#888] font-mono">
               <RefreshCw className="w-5 h-5 animate-spin text-[#D4AF37] mx-auto mb-2" />
-              Querying Supabase order records...
+              Loading customer profiles...
             </div>
           ) : customers.length === 0 ? (
-            <div className="p-8 text-center text-xs text-[#666] font-mono">
-              NO CUSTOMER RECORDS YET
+            <div className="p-12 text-center">
+              <div className="max-w-md mx-auto space-y-3">
+                <div className="w-12 h-12 rounded bg-[#1A1A1A] border border-[#262626] flex items-center justify-center mx-auto text-[#777]">
+                  <Users className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-white font-mono">NO CUSTOMER RECORDS YET</h3>
+                <p className="text-xs text-[#888] font-mono">
+                  Customer profiles and purchase histories are automatically compiled when orders are submitted.
+                </p>
+              </div>
             </div>
           ) : filteredCustomers.length === 0 ? (
             <div className="p-8 text-center text-xs text-[#666] font-mono">
@@ -219,11 +252,33 @@ export default function CustomersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1F1F1F]">
-              {loading ? (
+              {!isAuthenticated ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-14 text-center">
+                    <div className="max-w-md mx-auto space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-amber-950/40 border border-amber-800/40 text-[#D4AF37] flex items-center justify-center mx-auto">
+                        <ShieldCheck className="w-6 h-6" />
+                      </div>
+                      <h4 className="text-sm font-bold uppercase tracking-wider text-white font-mono">ADMIN AUTHORIZATION REQUIRED</h4>
+                      <p className="text-xs text-[#888] font-mono">
+                        Customer profiles, contact coordinates, and lifetime value records are protected.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={openUnlockModal}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 min-h-[44px] bg-[#D4AF37] hover:bg-[#B3932F] text-black font-bold uppercase text-xs rounded-xs font-mono cursor-pointer shadow-md"
+                      >
+                        <Unlock className="w-4 h-4 text-black" />
+                        <span>Unlock Admin</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : loading ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-xs text-[#888] font-mono">
                     <RefreshCw className="w-6 h-6 animate-spin text-[#D4AF37] mx-auto mb-2" />
-                    Querying Supabase order records...
+                    Loading customer profiles...
                   </td>
                 </tr>
               ) : customers.length === 0 ? (
@@ -292,4 +347,3 @@ export default function CustomersPage() {
     </div>
   );
 }
-

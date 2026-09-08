@@ -17,7 +17,9 @@ import {
   ShieldAlert,
   Globe,
   ExternalLink,
-  LogOut
+  LogOut,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { useAdminAuth } from '@/lib/auth-context';
 import { PWAInstallButton } from '@/components/pwa-install-button';
@@ -38,7 +40,7 @@ const navigation = [
 ];
 
 export function AdminSidebar({ currentPath, onNavigate }: { currentPath: string; onNavigate?: () => void }) {
-  const { user, role, signOut, hasAccess } = useAdminAuth();
+  const { user, role, isAuthenticated, openUnlockModal, signOut, hasAccess } = useAdminAuth();
 
   return (
     <div className="flex flex-col w-full md:w-64 bg-[#0F0F0F] border-r border-[#1F1F1F] text-[#E0E0E0] h-full min-h-full">
@@ -112,40 +114,57 @@ export function AdminSidebar({ currentPath, onNavigate }: { currentPath: string;
       <div className="p-4 border-t border-[#1F1F1F] bg-[#0A0A0A] space-y-3">
         <div className="flex items-center justify-between text-[#888] text-[10px] font-mono uppercase tracking-wider">
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            SYS ONLINE
+            <span className={`w-2 h-2 rounded-full ${isAuthenticated ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+            {isAuthenticated ? 'SYS AUTHORIZED' : 'SECURE GATEWAY'}
           </span>
           <span className="text-[#D4AF37] font-bold bg-amber-950/30 px-1.5 py-0.5 rounded-xs border border-[#D4AF37]/30">
-            ADMIN CORE
+            {isAuthenticated ? 'ADMIN CORE' : 'LOCKED'}
           </span>
         </div>
 
-        <div className="p-2.5 rounded-xs bg-[#141414] border border-[#222] flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded-xs bg-[#222] border border-[#333] flex items-center justify-center text-xs font-bold text-[#D4AF37] shrink-0">
-              {role === 'super_admin' ? 'SA' : role === 'admin' ? 'AD' : 'MG'}
-            </div>
-            <div className="overflow-hidden">
-              <div className="flex items-center gap-1">
-                <p className="text-xs font-bold text-white uppercase truncate">{user?.name || 'Administrator'}</p>
-                <ShieldCheck className="w-3 h-3 text-[#D4AF37] shrink-0" />
+        {isAuthenticated && user ? (
+          <div className="p-2.5 rounded-xs bg-[#141414] border border-[#222] flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="w-8 h-8 rounded-xs bg-[#222] border border-[#333] flex items-center justify-center text-xs font-bold text-[#D4AF37] shrink-0">
+                {role === 'super_admin' ? 'SA' : role === 'admin' ? 'AD' : 'MG'}
               </div>
-              <p className="text-[10px] text-[#888] font-mono tracking-tight truncate">
-                {role.replace('_', ' ').toUpperCase()}
-              </p>
+              <div className="overflow-hidden">
+                <div className="flex items-center gap-1">
+                  <p className="text-xs font-bold text-white uppercase truncate">{user?.name || 'Administrator'}</p>
+                  <ShieldCheck className="w-3 h-3 text-[#D4AF37] shrink-0" />
+                </div>
+                <p className="text-[10px] text-[#888] font-mono tracking-tight truncate">
+                  {role ? role.replace('_', ' ').toUpperCase() : 'ADMIN'}
+                </p>
+              </div>
             </div>
-          </div>
 
-          <button
-            type="button"
-            onClick={() => { void signOut(); }}
-            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#222] rounded text-[#666] hover:text-red-400 transition-colors shrink-0 cursor-pointer"
-            title="Sign Out"
-            aria-label="Sign Out"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => { void signOut(); }}
+              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#222] rounded text-[#666] hover:text-red-400 transition-colors shrink-0 cursor-pointer"
+              title="Lock Admin / Sign Out"
+              aria-label="Lock Admin / Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="p-3 rounded-xs bg-[#141414] border border-[#222] space-y-2.5">
+            <div className="flex items-center gap-2 text-xs text-[#888]">
+              <Lock className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span className="font-mono text-[11px] text-[#A0A0A0]">Protected Operations</span>
+            </div>
+            <button
+              type="button"
+              onClick={openUnlockModal}
+              className="w-full min-h-[40px] bg-[#D4AF37] hover:bg-[#B3932F] active:scale-[0.99] text-black font-bold uppercase text-xs font-mono tracking-wider rounded-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
+            >
+              <Unlock className="w-3.5 h-3.5 text-black" />
+              <span>Unlock Admin</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
