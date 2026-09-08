@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'VERITAS Admin',
     short_name: 'VERITAS',
     description: 'VERITAS Business Control Center',
-    start_url: '/admin',
+    start_url: '/admin/dashboard',
     scope: '/admin/',
     display: 'standalone',
     orientation: 'portrait-primary',

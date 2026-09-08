@@ -38,7 +38,7 @@ const navigation = [
 ];
 
 export function AdminSidebar({ currentPath, onNavigate }: { currentPath: string; onNavigate?: () => void }) {
-  const { user, role, isDevBypass, signOut, hasAccess } = useAdminAuth();
+  const { user, role, signOut, hasAccess } = useAdminAuth();
 
   return (
     <div className="flex flex-col w-full md:w-64 bg-[#0F0F0F] border-r border-[#1F1F1F] text-[#E0E0E0] h-full min-h-full">
@@ -115,15 +115,9 @@ export function AdminSidebar({ currentPath, onNavigate }: { currentPath: string;
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             SYS ONLINE
           </span>
-          {isDevBypass ? (
-            <span className="text-amber-400 font-bold bg-amber-950/40 px-1.5 py-0.5 rounded-xs border border-amber-800/40">
-              DEV BYPASS
-            </span>
-          ) : (
-            <span className="text-emerald-400 font-bold bg-emerald-950/40 px-1.5 py-0.5 rounded-xs border border-emerald-800/40">
-              AUTH ACTIVE
-            </span>
-          )}
+          <span className="text-[#D4AF37] font-bold bg-amber-950/30 px-1.5 py-0.5 rounded-xs border border-[#D4AF37]/30">
+            ADMIN CORE
+          </span>
         </div>
 
         <div className="p-2.5 rounded-xs bg-[#141414] border border-[#222] flex items-center justify-between gap-2">

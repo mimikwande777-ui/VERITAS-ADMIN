@@ -79,7 +79,7 @@ export function usePWA() {
         if ('caches' in window) {
           caches.keys().then((keys) => {
             for (const key of keys) {
-              if (key.startsWith('veritas-admin-')) {
+              if (key.startsWith('veritas-admin-') || key.startsWith('veritas-')) {
                 caches.delete(key);
               }
             }

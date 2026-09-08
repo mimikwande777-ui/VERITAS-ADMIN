@@ -1,12 +1,19 @@
 'use client';
 
+/**
+ * TEMPORARILY DISABLED ADMIN AUTH
+ * RESTORE BEFORE PUBLIC PRODUCTION USE
+ * 
+ * Authentication gate and login redirect loops are completely disabled.
+ * The Admin UI opens directly without sign-in requirements or loading screens.
+ * The full original auth layout is preserved in /app/admin/layout.preserved.tsx.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, Search, Bell, X, ShieldAlert, ShieldCheck, LogOut, Lock, UserCheck } from 'lucide-react';
+import { Menu, Search, X } from 'lucide-react';
 import { AdminSidebar } from '@/components/admin-sidebar';
-import { SupabaseStatusBanner } from '@/components/supabase-status-banner';
 import { AdminAuthProvider, useAdminAuth } from '@/lib/auth-context';
-import { AdminAccessDenied } from '@/components/admin-access-denied';
 import { PWAOfflineBanner } from '@/components/pwa-offline-banner';
 import { PWAUpdateBanner } from '@/components/pwa-update-banner';
 import { PWAInstallButton } from '@/components/pwa-install-button';
@@ -17,108 +24,48 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const { 
-    user, 
-    role, 
-    isLoading, 
-    isAuthenticated, 
-    isDevBypass, 
-    toggleDevBypass, 
-    signOut, 
-    hasAccess 
-  } = useAdminAuth();
+  const { user, role } = useAdminAuth();
 
-  // 1. If viewing the login page, render cleanly without the admin chrome
-  if (pathname === '/admin/login') {
-    return <>{children}</>;
-  }
-
-  // 2. Loading state while checking Supabase session
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#070707] flex flex-col items-center justify-center text-[#888] font-mono space-y-4">
-        <div className="w-10 h-10 bg-white flex items-center justify-center rounded-xs shadow-2xl">
-          <div className="w-5 h-5 bg-black rotate-45 animate-spin"></div>
-        </div>
-        <div className="text-center space-y-1">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-white">VERITAS SECURITY GATEWAY</p>
-          <p className="text-[10px] text-[#666] uppercase tracking-widest">Validating Administrative Clearance...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // 3. Authentication Enforcement
-  // If not authenticated and dev bypass is not active, redirect to /admin/login
-  if (!isAuthenticated && !isDevBypass) {
-    if (typeof window !== 'undefined') {
-      const redirectTarget = pathname ? `/admin/login?redirect=${encodeURIComponent(pathname)}` : '/admin/login';
-      router.replace(redirectTarget);
+  // 1. If user navigates to /admin/login directly, redirect immediately to /admin/dashboard
+  useEffect(() => {
+    if (pathname === '/admin/login') {
+      router.replace('/admin/dashboard');
     }
-    return (
-      <div className="min-h-screen bg-[#070707] flex flex-col items-center justify-center text-[#888] font-mono space-y-2">
-        <Lock className="w-8 h-8 text-[#D4AF37] animate-pulse" />
-        <p className="text-xs font-bold uppercase tracking-wider text-white">AUTHENTICATION REQUIRED</p>
-        <p className="text-[10px] text-[#666]">Redirecting to secure login portal...</p>
-      </div>
-    );
+  }, [pathname, router]);
+
+  if (pathname === '/admin/login') {
+    return null;
   }
 
-  // 4. RBAC Route Clearance Check
-  let hasRouteAccess = true;
-  let requiredRole = 'manager';
+  // Determine current section label for header display
   let sectionLabel = 'Dashboard';
-
   if (pathname?.startsWith('/admin/settings')) {
     sectionLabel = 'System Settings';
-    requiredRole = 'super_admin';
-    hasRouteAccess = hasAccess('canManageSettings');
   } else if (pathname?.startsWith('/admin/discounts')) {
     sectionLabel = 'Discounts & Promotions';
-    requiredRole = 'admin';
-    hasRouteAccess = hasAccess('canManageDiscounts');
+  } else if (pathname?.startsWith('/admin/products/new')) {
+    sectionLabel = 'Add New Product';
   } else if (pathname?.startsWith('/admin/products')) {
     sectionLabel = 'Product Catalog';
-    requiredRole = 'manager';
-    hasRouteAccess = hasAccess('canManageProducts');
   } else if (pathname?.startsWith('/admin/inventory')) {
     sectionLabel = 'Inventory Control';
-    requiredRole = 'manager';
-    hasRouteAccess = hasAccess('canManageInventory');
   } else if (pathname?.startsWith('/admin/orders')) {
     sectionLabel = 'Order Management';
-    requiredRole = 'manager';
-    hasRouteAccess = hasAccess('canManageOrders');
   } else if (pathname?.startsWith('/admin/sales')) {
     sectionLabel = 'Sales & Revenue';
-    requiredRole = 'manager';
-    hasRouteAccess = hasAccess('canViewSalesAnalytics');
   } else if (pathname?.startsWith('/admin/collections')) {
     sectionLabel = 'Collections';
-    requiredRole = 'manager';
-    hasRouteAccess = hasAccess('canManageCollections');
   } else if (pathname?.startsWith('/admin/categories')) {
     sectionLabel = 'Categories';
-    requiredRole = 'manager';
-    hasRouteAccess = hasAccess('canManageCategories');
   } else if (pathname?.startsWith('/admin/media')) {
     sectionLabel = 'Media Assets';
-    requiredRole = 'manager';
-    hasRouteAccess = hasAccess('canManageMedia');
   } else if (pathname?.startsWith('/admin/activity')) {
     sectionLabel = 'Audit Activity Log';
-    requiredRole = 'manager';
-    hasRouteAccess = hasAccess('canViewActivityLog');
   } else if (pathname?.startsWith('/admin/customers')) {
     sectionLabel = 'Customer Profiles';
-    requiredRole = 'manager';
-    hasRouteAccess = hasAccess('canViewCustomers');
+  } else if (pathname?.startsWith('/admin/install')) {
+    sectionLabel = 'PWA App Installation';
   }
-
-  const currentSection = (pathname || '')
-    .replace('/admin/', '')
-    .replace('/admin', 'dashboard')
-    .toUpperCase();
 
   return (
     <div className="flex h-[100dvh] min-h-[100dvh] w-full max-w-full overflow-hidden bg-[#0A0A0A] text-[#E0E0E0] font-sans antialiased">
@@ -167,39 +114,6 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
 
       {/* RIGHT: TOP HEADER + MAIN CONTENT CANVAS */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#0A0A0A]">
-        {/* TOP MODE & SECURITY BANNER */}
-        {isDevBypass ? (
-          <div className="bg-amber-950/40 border-b border-amber-800/40 px-3 sm:px-4 py-1.5 flex items-center justify-between text-xs text-amber-200/90 font-mono shrink-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-amber-900/60 text-amber-200 border border-amber-700/60 uppercase tracking-wider shrink-0">
-                <ShieldAlert className="w-3 h-3 text-amber-400" />
-                Bypass Active
-              </span>
-              <span className="text-[10px] sm:text-[11px] text-amber-200/80 truncate">
-                Dev test mode
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-[#0B1510] border-b border-emerald-900/40 px-3 sm:px-4 py-1.5 flex items-center justify-between text-xs text-emerald-300/90 font-mono shrink-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 uppercase tracking-wider shrink-0">
-                <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                Security Active
-              </span>
-              <span className="text-[10px] sm:text-[11px] text-emerald-200/80 truncate">
-                Supabase Auth + RLS
-              </span>
-            </div>
-            <div className="text-[10px] font-mono text-emerald-400/70 uppercase tracking-wider hidden md:block shrink-0">
-              ROLE: {role.toUpperCase()}
-            </div>
-          </div>
-        )}
-
-        {/* SUPABASE STATUS & CONFIGURATION BANNER */}
-        <SupabaseStatusBanner />
-
         {/* PWA SYSTEM & CONNECTIVITY BANNERS */}
         <PWAOfflineBanner />
         <PWAUpdateBanner />
@@ -246,47 +160,27 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
             {/* Authenticated Admin Identity Badge */}
             <div className="flex items-center gap-1.5 sm:gap-2 bg-[#141414] border border-[#262626] px-2 sm:px-2.5 py-1 rounded-xs">
               <div className="w-6 h-6 rounded-xs bg-[#222] border border-[#333] flex items-center justify-center text-[10px] font-bold text-[#D4AF37] shrink-0">
-                {role === 'super_admin' ? 'SA' : role === 'admin' ? 'AD' : 'MG'}
+                SA
               </div>
               <div className="hidden lg:block text-left">
                 <div className="text-[11px] font-bold text-white font-mono leading-tight truncate max-w-[130px]">
                   {user?.email || 'admin@veritas.internal'}
                 </div>
                 <div className="text-[9px] font-mono uppercase tracking-wider text-[#888]">
-                  {role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Admin' : 'Manager'}
+                  Super Admin
                 </div>
               </div>
-              <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded uppercase hidden sm:inline ${
-                role === 'super_admin' 
-                  ? 'bg-amber-950/60 text-[#D4AF37] border border-[#D4AF37]/40' 
-                  : role === 'admin'
-                  ? 'bg-blue-950/60 text-blue-300 border border-blue-700/40'
-                  : 'bg-emerald-950/60 text-emerald-300 border border-emerald-700/40'
-              }`}>
-                {role.replace('_', ' ')}
+              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded uppercase hidden sm:inline bg-amber-950/60 text-[#D4AF37] border border-[#D4AF37]/40">
+                {role ? role.replace('_', ' ') : 'Super Admin'}
               </span>
             </div>
-
-            {/* Logout Button */}
-            <button
-              type="button"
-              onClick={() => { void signOut(); }}
-              className="min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-[#181818] hover:bg-red-950/40 border border-[#2B2B2B] hover:border-red-800/60 text-[#888] hover:text-red-300 text-xs font-mono uppercase tracking-wider rounded-xs transition-colors cursor-pointer"
-              title="Sign out of Admin"
-              aria-label="Logout"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline text-[11px]">Logout</span>
-            </button>
           </div>
         </header>
 
         {/* MAIN CONTENT CANVAS */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden focus:outline-none bg-[#0A0A0A] relative z-0" style={{ WebkitOverflowScrolling: 'touch' }}>
           <div className="p-3 sm:p-5 lg:p-8 max-w-[1600px] mx-auto pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-8 w-full min-w-0">
-            {hasRouteAccess ? children : (
-              <AdminAccessDenied sectionName={sectionLabel} requiredRole={requiredRole} />
-            )}
+            {children}
           </div>
         </main>
 

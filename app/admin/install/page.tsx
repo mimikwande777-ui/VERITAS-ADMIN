@@ -307,8 +307,8 @@ export default function AdminInstallPage() {
 
           <div className="p-3 bg-[#0A0A0A] border border-[#222] rounded-xs space-y-1">
             <span className="text-[10px] text-[#666] uppercase block">Start URL</span>
-            <div className="text-[#D4AF37] font-bold">/admin</div>
-            <p className="text-[10px] text-[#555]">Direct login/dashboard gateway</p>
+            <div className="text-[#D4AF37] font-bold">/admin/dashboard</div>
+            <p className="text-[10px] text-[#555]">Direct dashboard entry point</p>
           </div>
 
           <div className="p-3 bg-[#0A0A0A] border border-[#222] rounded-xs space-y-1">

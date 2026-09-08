@@ -2,60 +2,39 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * VERITAS ROUTING & SECURITY MIDDLEWARE
+ * TEMPORARILY DISABLED ADMIN AUTH
+ * RESTORE BEFORE PUBLIC PRODUCTION USE
  * 
- * - Enforces authentication on all /admin/* routes (redirecting unauthenticated users to /admin/login)
- * - Protects /api/admin/* API endpoints with 401 unauthorized
- * - Preserves ADMIN_AUTH_BYPASS configuration for controlled development testing
- * - Strictly leaves all public storefront routes (/, /shop, /products/*, /cart, /checkout, /api/orders/create) open
+ * VERITAS ROUTING & SECURITY MIDDLEWARE
+ * - /admin routes directly to /admin/dashboard
+ * - /admin/login routes directly to /admin/dashboard (no login form rendered)
+ * - All admin views (/admin/*) are accessible directly without auth gate
+ * - Admin API routes (/api/admin/*) pass through without requiring cookies
+ * - Public storefront routes (/, /shop, /products/*, /cart, /checkout, etc.) remain open
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. Direct /admin base route to /admin/dashboard
+  // 1. Direct /admin base route immediately to /admin/dashboard
   if (pathname === '/admin') {
     return NextResponse.redirect(new URL('/admin/dashboard', request.url));
   }
 
-  // 2. Allow unrestricted access to the admin login portal
+  // 2. Direct /admin/login immediately to /admin/dashboard
   if (pathname === '/admin/login') {
+    return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+  }
+
+  // 3. Admin Web UI Routes (/admin/*)
+  // TEMPORARILY DISABLED ADMIN AUTH: Allow all admin routes to open directly without login
+  if (pathname.startsWith('/admin')) {
     return NextResponse.next();
   }
 
-  // Check development bypass environment variable
-  // Production behavior strictly enforces authentication (bypass only allowed in non-production environments)
-  const isDev = process.env.NODE_ENV !== 'production';
-  const isEnvBypass = isDev && process.env.ADMIN_AUTH_BYPASS === 'true';
-
-  // Check session cookie
-  const sessionCookie = request.cookies.get('veritas_admin_session')?.value;
-  const isSessionValid = sessionCookie === 'active' || (isEnvBypass && sessionCookie === 'bypass');
-
-  // 3. Protect Admin Web UI Routes (/admin/*)
-  if (pathname.startsWith('/admin')) {
-    if (isEnvBypass || isSessionValid) {
-      return NextResponse.next();
-    }
-
-    // Redirect unauthenticated request to /admin/login
-    const loginUrl = new URL('/admin/login', request.url);
-    loginUrl.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  // 4. Protect Admin API Routes (/api/admin/*)
+  // 4. Admin API Routes (/api/admin/*)
+  // Direct access permitted while auth is temporarily disabled
   if (pathname.startsWith('/api/admin')) {
-    const authHeader = request.headers.get('authorization');
-    const hasBearer = Boolean(authHeader && authHeader.startsWith('Bearer '));
-
-    if (isEnvBypass || isSessionValid || hasBearer) {
-      return NextResponse.next();
-    }
-
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized: Admin authentication token or active session required.' },
-      { status: 401 }
-    );
+    return NextResponse.next();
   }
 
   // 5. Public storefront routes remain 100% accessible
@@ -65,5 +44,3 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: ['/admin', '/admin/:path*', '/api/admin/:path*'],
 };
-
-

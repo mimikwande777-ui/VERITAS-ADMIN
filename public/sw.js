@@ -52,7 +52,7 @@ self.addEventListener('activate', (event) => {
         cacheNames
           .filter((cacheName) => {
             return (
-              cacheName.startsWith('veritas-admin-') &&
+              (cacheName.startsWith('veritas-admin-') || cacheName.startsWith('veritas-')) &&
               cacheName !== STATIC_CACHE_NAME
             );
           })
