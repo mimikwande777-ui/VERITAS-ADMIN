@@ -18,64 +18,86 @@ export default function AdminResetPasswordPage() {
     let isMounted = true;
 
     const initRecoveryCheck = async () => {
-      const client = getSupabaseClient();
-      if (!client) {
-        if (isMounted) {
-          setError('Password recovery service is temporarily unavailable. Please verify configuration.');
-          setCheckingSession(false);
-        }
-        return;
-      }
-      
+      // 1. Check if URL contains error=invalid
       if (typeof window !== 'undefined') {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('error') === 'invalid') {
           if (isMounted) {
             setHasRecoverySession(false);
-            setError('Password recovery link is invalid or has expired. Request a new recovery email.');
+            setError('Password recovery link is invalid or expired. Request a new recovery email.');
             setCheckingSession(false);
           }
           return;
         }
       }
 
+      const client = getSupabaseClient();
+
       try {
-        // Handle code exchange if PKCE code is in search params
-        if (typeof window !== 'undefined') {
+        // 2. Handle PKCE code exchange if present in search params
+        if (typeof window !== 'undefined' && client) {
           const urlParams = new URLSearchParams(window.location.search);
           const code = urlParams.get('code');
 
           if (code) {
             const { error: exchangeError } = await client.auth.exchangeCodeForSession(code);
             if (exchangeError) {
-              console.error('[Recovery] Code exchange error:', exchangeError.message);
+              console.error('[Recovery] Session exchange error');
             }
           }
         }
 
-        const { data: { session } } = await client.auth.getSession();
-        if (session && isMounted) {
-          setHasRecoverySession(true);
-          setError(null);
-          setCheckingSession(false);
-        } else if (isMounted) {
-          // Give a short delay for hash fragment processing if present
-          setTimeout(async () => {
+        // 3. Check client-side Supabase session
+        if (client) {
+          const { data: { session } } = await client.auth.getSession();
+          if (session && isMounted) {
+            setHasRecoverySession(true);
+            setError(null);
+            setCheckingSession(false);
+            return;
+          }
+        }
+
+        // 4. Check server-persisted cookie session (from /auth/confirm)
+        const serverCheck = await fetch('/api/admin/reset-password', {
+          method: 'GET',
+          headers: { 'Cache-Control': 'no-cache' },
+        }).catch(() => null);
+
+        if (serverCheck?.ok) {
+          const checkData = await serverCheck.json().catch(() => ({}));
+          if (checkData.hasSession && isMounted) {
+            setHasRecoverySession(true);
+            setError(null);
+            setCheckingSession(false);
+            return;
+          }
+        }
+
+        // 5. Short delay in case browser hash token is processing
+        setTimeout(async () => {
+          if (!isMounted) return;
+          if (client) {
             const { data: { session: delayedSession } } = await client.auth.getSession();
             if (delayedSession && isMounted) {
               setHasRecoverySession(true);
               setError(null);
-            } else if (isMounted) {
-              setHasRecoverySession(false);
-              setError('Password recovery link is invalid or has expired. Request a new recovery email.');
+              setCheckingSession(false);
+              return;
             }
-            if (isMounted) setCheckingSession(false);
-          }, 800);
-        }
-      } catch (err) {
+          }
+
+          if (isMounted) {
+            setHasRecoverySession(false);
+            setError('Password recovery link is invalid or expired. Request a new recovery email.');
+            setCheckingSession(false);
+          }
+        }, 500);
+
+      } catch {
         if (isMounted) {
           setHasRecoverySession(false);
-          setError('Password recovery link is invalid or has expired. Request a new recovery email.');
+          setError('Password recovery link is invalid or expired. Request a new recovery email.');
           setCheckingSession(false);
         }
       }
@@ -126,23 +148,44 @@ export default function AdminResetPasswordPage() {
       return;
     }
 
-    const client = getSupabaseClient();
-    if (!client) {
-      setError('Authentication client is unconfigured.');
-      return;
-    }
-
     setLoading(true);
 
     try {
-      // Update password using standard Supabase Auth client (authenticated recovery session)
-      const { error: updateError } = await client.auth.updateUser({
-        password,
-      });
+      const client = getSupabaseClient();
+      let updated = false;
 
-      if (updateError) {
-        setError(updateError.message || 'Failed to update password. Recovery link may have expired.');
-      } else {
+      // Try browser Supabase client first if it has an active session
+      if (client) {
+        const { data: { session } } = await client.auth.getSession();
+        if (session) {
+          const { error: updateError } = await client.auth.updateUser({
+            password,
+          });
+
+          if (!updateError) {
+            updated = true;
+          } else {
+            console.error('[Recovery] Client password update failed');
+          }
+        }
+      }
+
+      // If not updated via browser client, update via server endpoint using HttpOnly cookie session
+      if (!updated) {
+        const res = await fetch('/api/admin/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Failed to update password. Recovery session may have expired.');
+        }
+        updated = true;
+      }
+
+      if (updated) {
         setSuccess(true);
         setPassword('');
         setConfirmPassword('');
