@@ -1,11 +1,18 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { fetchSupabaseProducts } from '@/lib/supabase/products';
 import { fetchFullOrdersFromSupabase } from '@/lib/supabase/orders';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { requireAdmin } from '@/lib/supabase/require-admin';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authCheck = await requireAdmin(request);
+  if (!authCheck.authorized) {
+    return authCheck.errorResponse;
+  }
+
   const report: any = {};
   try {
     // 1. Dashboard & Products (Read-Only)

@@ -164,10 +164,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (updateError) {
-      console.error('[admin-reset-password] password update failed', {
-        status: updateError.status ?? null,
-        code: updateError.code ?? null,
-      });
+      console.error('[admin-reset-password] password update failed:', updateError.message || 'Unknown error');
       return NextResponse.json(
         { success: false, error: updateError.message || 'Failed to update password.' },
         { status: 400 }

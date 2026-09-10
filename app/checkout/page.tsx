@@ -49,10 +49,11 @@ export default function CheckoutPage() {
     province: 'Gauteng',
     postalCode: '',
     notes: '',
-    paymentMethod: 'eft'
+    paymentMethod: 'payfast'
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingStatusText, setSubmittingStatusText] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [summaryOpenOnMobile, setSummaryOpenOnMobile] = useState(false);
 
@@ -113,15 +114,51 @@ export default function CheckoutPage() {
         throw new Error(data.error || 'Failed to place order in Supabase');
       }
 
-      // Clear shopping bag after confirmed order
+      // Order created in Supabase ledger with payment_status: 'pending'.
+      // Clearing local cart ensures the customer does not duplicate the order.
       clearCart();
 
-      // Redirect to confirmation page with real Supabase order details
+      // If user selected PayFast, initialize secure server-side payment and dynamically POST form
+      if (formData.paymentMethod === 'payfast') {
+        setSubmittingStatusText('Redirecting securely to PayFast...');
+
+        const payfastRes = await fetch('/api/payments/payfast/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: data.orderId })
+        });
+
+        const payfastData = await payfastRes.json();
+
+        if (!payfastRes.ok || !payfastData.success || !payfastData.action || !payfastData.fields) {
+          throw new Error(payfastData.error || 'Failed to initialize PayFast payment gateway.');
+        }
+
+        // Dynamically create and submit HTML form via POST to PayFast process URL
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = payfastData.action;
+
+        Object.entries(payfastData.fields as Record<string, string>).forEach(([key, value]) => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = String(value);
+          form.appendChild(input);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+        return;
+      }
+
+      // For Bank Transfer / EFT, redirect directly to confirmation page
       router.push(`/order-confirmation?orderNumber=${encodeURIComponent(data.orderNumber)}&orderId=${encodeURIComponent(data.orderId || '')}&email=${encodeURIComponent(formData.email)}&name=${encodeURIComponent(customerFullName)}`);
     } catch (err: any) {
       console.error('Checkout error:', err);
       setErrorMsg(err?.message || 'There was an error processing your order. Please try again.');
       setIsSubmitting(false);
+      setSubmittingStatusText(null);
     }
   };
 
@@ -425,13 +462,28 @@ export default function CheckoutPage() {
                 <span>Payment & Verification (ZAR)</span>
               </h2>
 
-              {/* Online payment notice */}
-              <div className="p-3 bg-[#161616] border border-[#333] rounded-xs text-xs font-mono text-[#D4AF37] flex items-center gap-2.5">
-                <ShieldCheck className="w-4 h-4 text-[#D4AF37] shrink-0" />
-                <span>Online payment is temporarily unavailable. Orders are secured via Bank Transfer / EFT reservation with payment pending.</span>
-              </div>
-
+              {/* Payment method selection */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className={`p-4 border rounded-xs cursor-pointer flex flex-col justify-between transition-all ${
+                  formData.paymentMethod === 'payfast' 
+                    ? 'border-[#D4AF37] bg-[#1A1A1A]' 
+                    : 'border-[#262626] bg-[#121212] hover:border-[#444]'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="payfast"
+                      checked={formData.paymentMethod === 'payfast'}
+                      onChange={handleInputChange}
+                      className="accent-[#D4AF37]"
+                    />
+                    <CreditCard className="w-4 h-4 text-[#D4AF37]" />
+                  </div>
+                  <span className="text-xs font-bold uppercase text-white">Online Card / PayFast</span>
+                  <span className="text-[10px] text-[#777] font-mono mt-0.5">Visa, Mastercard, Debit / Credit Cards (Instant Settlement)</span>
+                </label>
+
                 <label className={`p-4 border rounded-xs cursor-pointer flex flex-col justify-between transition-all ${
                   formData.paymentMethod === 'eft' 
                     ? 'border-[#D4AF37] bg-[#1A1A1A]' 
@@ -451,17 +503,6 @@ export default function CheckoutPage() {
                   <span className="text-xs font-bold uppercase text-white">Bank Transfer / EFT</span>
                   <span className="text-[10px] text-[#777] font-mono mt-0.5">FNB, Standard Bank, Absa, Nedbank, Capitec</span>
                 </label>
-
-                <div className="p-4 border border-[#222] bg-[#101010]/60 rounded-xs flex flex-col justify-between opacity-50 cursor-not-allowed">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-amber-500/90 font-bold bg-amber-950/40 px-2 py-0.5 border border-amber-800/40 rounded-xs">
-                      Gateway Unavailable
-                    </span>
-                    <CreditCard className="w-4 h-4 text-[#666]" />
-                  </div>
-                  <span className="text-xs font-bold uppercase text-[#777]">Online Card / PayFast</span>
-                  <span className="text-[10px] text-[#555] font-mono mt-0.5">Online payment is temporarily unavailable</span>
-                </div>
               </div>
             </div>
           </div>
@@ -531,12 +572,16 @@ export default function CheckoutPage() {
                 {isSubmitting ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Transmitting to OTC Queue...</span>
+                    <span>{submittingStatusText || 'Transmitting to OTC Queue...'}</span>
                   </>
                 ) : (
                   <>
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Place Order • {formatZAR(total)}</span>
+                    <span>
+                      {formData.paymentMethod === 'payfast' 
+                        ? `Proceed to PayFast • ${formatZAR(total)}` 
+                        : `Place Order • ${formatZAR(total)}`}
+                    </span>
                   </>
                 )}
               </button>

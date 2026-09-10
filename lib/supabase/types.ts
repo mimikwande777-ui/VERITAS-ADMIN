@@ -176,8 +176,28 @@ export interface DbOrder {
   payment_status?: string;
   order_status?: string;
   fulfilment_status?: string;
+  payment_provider?: string | null;
+  payfast_payment_id?: string | null;
+  paid_at?: string | null;
+  payment_expires_at?: string | null;
+  stock_released_at?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface DbPaymentEvent {
+  id: string;
+  order_id: string;
+  provider: string;
+  provider_payment_id?: string | null;
+  event_type: string;
+  payment_status: string;
+  amount: number;
+  currency: string;
+  signature_verified: boolean;
+  source_verified: boolean;
+  raw_reference?: string | null;
+  created_at?: string;
 }
 
 export interface DbOrderItem {

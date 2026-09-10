@@ -492,9 +492,9 @@ export async function createOrderInSupabase(
       });
     }
 
-    // Authoritative totals calculation
-    const calculatedShipping = calculateShippingFeeZAR(calculatedSubtotal, validatedItems.length);
-    const calculatedTotal = calculatedSubtotal + calculatedShipping;
+    // Authoritative totals calculation: VERITAS business rule is FREE SHIPPING ON ALL ORDERS (R0.00)
+    const calculatedShipping = 0.00;
+    const calculatedTotal = calculatedSubtotal;
 
     // Generate canonical Veritas order number: VER-YYYY-XXXXXX
     const currentYear = new Date().getFullYear();
@@ -524,13 +524,22 @@ export async function createOrderInSupabase(
       });
 
       if (!rpcErr && rpcData && rpcData.success) {
+        // Enforce VERITAS business rule: Free shipping on all orders
+        const finalShipping = 0.00;
+        const finalTotal = Number(rpcData.subtotal ?? calculatedSubtotal);
+        if (Number(rpcData.shipping_amount || 0) > 0) {
+          await client
+            .from('orders')
+            .update({ shipping_amount: finalShipping, total: finalTotal })
+            .eq('id', rpcData.order_id);
+        }
         return {
           success: true,
           orderId: rpcData.order_id,
           orderNumber: rpcData.order_number || orderNumber,
           subtotal: Number(rpcData.subtotal ?? calculatedSubtotal),
-          shippingAmount: Number(rpcData.shipping_amount ?? calculatedShipping),
-          total: Number(rpcData.total ?? calculatedTotal)
+          shippingAmount: finalShipping,
+          total: finalTotal
         };
       }
     } catch (rpcEx) {
