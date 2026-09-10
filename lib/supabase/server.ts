@@ -61,7 +61,7 @@ export function isServiceRoleConfigured(): boolean {
   if (typeof window !== 'undefined') {
     return false;
   }
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  return Boolean(serviceRoleKey && serviceRoleKey.trim().length > 0);
+  const secretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return Boolean(secretKey && secretKey.trim().length > 0);
 }
 

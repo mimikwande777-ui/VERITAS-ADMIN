@@ -14,9 +14,17 @@ export async function GET() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     ),
 
-    serviceRolePresent: Boolean(
+    privilegedKeyPresent: Boolean(
+      process.env.SUPABASE_SECRET_KEY ||
       process.env.SUPABASE_SERVICE_ROLE_KEY
     ),
+
+    privilegedKeySource:
+      process.env.SUPABASE_SECRET_KEY
+        ? "SUPABASE_SECRET_KEY"
+        : process.env.SUPABASE_SERVICE_ROLE_KEY
+        ? "SUPABASE_SERVICE_ROLE_KEY"
+        : "MISSING",
 
     urlSource:
       process.env.SUPABASE_URL
