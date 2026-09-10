@@ -30,7 +30,14 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       // Do not reveal email existence to prevent user enumeration
-      console.error('[Recovery] Supabase reset error:', error.message);
+      console.error("[admin-recover] recovery request failed", {
+        status: error.status ?? null,
+        code: error.code ?? null,
+        name: error.name ?? null,
+        message: error.message ?? null
+      });
+    } else {
+      console.info("[admin-recover] recovery request accepted");
     }
 
     return NextResponse.json({
