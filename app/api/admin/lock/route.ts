@@ -34,5 +34,10 @@ export async function POST(request: NextRequest) {
     maxAge: 0,
   });
 
+  response.cookies.set('veritas_admin_session', '', {
+    path: '/',
+    maxAge: 0,
+  });
+
   return response;
 }

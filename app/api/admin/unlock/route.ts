@@ -17,48 +17,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Authenticate credentials via server-side Supabase signInWithPassword
-    const serverClient = createServerSupabaseClient();
-    if (!serverClient) {
+    // STEP 1 — AUTHENTICATE CREDENTIALS
+    // Use the NORMAL Supabase Auth client only (SUPABASE_URL, SUPABASE_ANON_KEY)
+    const authClient = createServerSupabaseClient();
+    if (!authClient) {
       return NextResponse.json(
         { success: false, error: 'Server authentication client configuration error.' },
         { status: 500 }
       );
     }
 
-    const { data: authData, error: authError } = await serverClient.auth.signInWithPassword({
+    const { data, error } = await authClient.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (authError || !authData.user || !authData.session) {
+    if (error || !data.user || !data.session) {
       return NextResponse.json(
-        { success: false, error: authError?.message || 'Invalid administrator credentials.' },
+        { success: false, error: 'Invalid login credentials' },
         { status: 401 }
       );
     }
 
-    const user = authData.user;
-    const session = authData.session;
+    // STEP 2 — TRUST ONLY THE AUTHENTICATED UUID
+    const authenticatedUserId = data.user.id;
 
-    // 2. Authoritative check: verify user UUID exists in public.admin_users using Service Role
-    const serviceClient = createServiceRoleSupabaseClient();
-    if (!serviceClient) {
+    // STEP 3 — VERIFY admin_users SERVER-SIDE
+    // Membership lookup ONLY using server-only privileged Supabase client
+    const privilegedClient = createServiceRoleSupabaseClient();
+    if (!privilegedClient) {
       return NextResponse.json(
         { success: false, error: 'Server authorization database client error.' },
         { status: 500 }
       );
     }
 
-    const { data: adminRecord, error: adminErr } = await serviceClient
+    const { data: adminRecord, error: adminErr } = await privilegedClient
       .from('admin_users')
-      .select('user_id, role, email')
-      .eq('user_id', user.id)
+      .select('user_id, role')
+      .eq('user_id', authenticatedUserId)
       .maybeSingle();
 
+    // STEP 4 — ROLE CHECK
     if (adminErr || !adminRecord) {
       return NextResponse.json(
-        { success: false, error: 'Forbidden: Authenticated user is not registered in public.admin_users.' },
+        { success: false, error: 'Administrator access denied.' },
         { status: 403 }
       );
     }
@@ -66,14 +69,17 @@ export async function POST(request: NextRequest) {
     const allowedRoles = ['super_admin', 'admin', 'manager'];
     if (!allowedRoles.includes(adminRecord.role)) {
       return NextResponse.json(
-        { success: false, error: 'Forbidden: Insufficient administrative privileges.' },
+        { success: false, error: 'Administrator access denied.' },
         { status: 403 }
       );
     }
 
-    // 3. Construct Admin User payload
+    // STEP 5 & 6 — CREATE ADMIN SESSION & SESSION CONSISTENCY
+    const user = data.user;
+    const session = data.session;
+
     const adminUser = {
-      id: user.id,
+      id: authenticatedUserId,
       name: user.user_metadata?.full_name || email.split('@')[0].toUpperCase(),
       email: user.email || email,
       role: adminRecord.role,
@@ -81,7 +87,6 @@ export async function POST(request: NextRequest) {
       lastActive: 'Just now',
     };
 
-    // 4. Return 200 with HttpOnly secure session cookie
     const response = NextResponse.json({
       success: true,
       user: adminUser,
