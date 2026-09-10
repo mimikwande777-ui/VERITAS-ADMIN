@@ -26,6 +26,18 @@ export default function AdminResetPasswordPage() {
         }
         return;
       }
+      
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('error') === 'invalid') {
+          if (isMounted) {
+            setHasRecoverySession(false);
+            setError('Password recovery link is invalid or has expired. Request a new recovery email.');
+            setCheckingSession(false);
+          }
+          return;
+        }
+      }
 
       try {
         // Handle code exchange if PKCE code is in search params

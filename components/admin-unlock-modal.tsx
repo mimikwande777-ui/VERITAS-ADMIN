@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAdminAuth } from '@/lib/auth-context';
-import { ShieldCheck, Lock, Mail, KeyRound, X, Loader2, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, KeyRound, X, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export function AdminUnlockModal() {
   const { isUnlockModalOpen, closeUnlockModal, signIn, isAuthenticated } = useAdminAuth();
@@ -10,6 +10,12 @@ export function AdminUnlockModal() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // Forgot Password state
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
 
   const emailInputRef = useRef<HTMLInputElement>(null);
 
@@ -18,6 +24,8 @@ export function AdminUnlockModal() {
     if (isUnlockModalOpen) {
       const timer = setTimeout(() => {
         setErrorMessage(null);
+        setRecoveryMessage(null);
+        setIsForgotPassword(false);
         emailInputRef.current?.focus();
       }, 50);
       return () => clearTimeout(timer);
@@ -64,6 +72,38 @@ export function AdminUnlockModal() {
     }
   };
 
+  const handleRecoverySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recoveryEmail.trim()) {
+      setRecoveryMessage({ type: 'error', text: 'Please enter your admin email.' });
+      return;
+    }
+
+    setRecoveryLoading(true);
+    setRecoveryMessage(null);
+
+    try {
+      const res = await fetch('/api/admin/recover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: recoveryEmail.trim() }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send recovery email.');
+      }
+      
+      setRecoveryMessage({ type: 'success', text: 'If an eligible administrator account exists, a recovery email has been sent.' });
+      setRecoveryEmail('');
+    } catch (err: any) {
+      setRecoveryMessage({ type: 'error', text: err?.message || 'Failed to process recovery request.' });
+    } finally {
+      setRecoveryLoading(false);
+    }
+  };
+
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
@@ -92,7 +132,7 @@ export function AdminUnlockModal() {
                 SECURITY GATEWAY
               </span>
               <h2 id="unlock-modal-title" className="text-sm sm:text-base font-bold text-white uppercase tracking-wider">
-                VERITAS Admin Authorization
+                {isForgotPassword ? 'Password Recovery' : 'VERITAS Admin'}
               </h2>
             </div>
           </div>
@@ -107,89 +147,183 @@ export function AdminUnlockModal() {
           </button>
         </div>
 
-        <p className="text-xs text-[#888] font-mono mb-4 leading-relaxed">
-          Provide your verified Supabase administrator credentials to unlock protected pipeline operations, customer data, and stock mutations.
-        </p>
+        {!isForgotPassword ? (
+          <>
+            <p className="text-xs text-[#888] font-mono mb-4 leading-relaxed">
+              Provide your verified Supabase administrator credentials to unlock protected pipeline operations, customer data, and stock mutations.
+            </p>
 
-        {/* Error Alert */}
-        {errorMessage && (
-          <div className="mb-4 p-3 bg-red-950/40 border border-red-800/60 rounded-xs flex items-start gap-2.5 text-xs text-red-300 font-mono animate-in fade-in">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-            <span className="leading-snug">{errorMessage}</span>
-          </div>
+            {/* Error Alert */}
+            {errorMessage && (
+              <div className="mb-4 p-3 bg-red-950/40 border border-red-800/60 rounded-xs flex items-start gap-2.5 text-xs text-red-300 font-mono animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span className="leading-snug">{errorMessage}</span>
+              </div>
+            )}
+
+            {/* Authorization Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label 
+                  htmlFor="admin-unlock-email" 
+                  className="text-[11px] font-mono uppercase tracking-wider text-[#A0A0A0] block font-medium"
+                >
+                  Admin Email
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-[#666] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    ref={emailInputRef}
+                    id="admin-unlock-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@veritas.internal"
+                    className="w-full min-h-[44px] bg-[#161616] border border-[#2B2B2B] text-white pl-9 pr-3 py-2 text-sm rounded-none font-mono placeholder-[#555] focus:outline-hidden focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/40 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label 
+                    htmlFor="admin-unlock-password" 
+                    className="text-[11px] font-mono uppercase tracking-wider text-[#A0A0A0] block font-medium"
+                  >
+                    Admin Password
+                  </label>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setIsForgotPassword(true);
+                      setRecoveryEmail(email);
+                    }}
+                    className="text-[11px] font-mono text-[#D4AF37] hover:text-white transition-colors"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 text-[#666] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    id="admin-unlock-password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="w-full min-h-[44px] bg-[#161616] border border-[#2B2B2B] text-white pl-9 pr-3 py-2 text-sm rounded-none font-mono placeholder-[#555] focus:outline-hidden focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/40 transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full min-h-[44px] bg-[#D4AF37] hover:bg-[#B3932F] active:scale-[0.99] text-black font-bold uppercase text-xs tracking-wider rounded-xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-black" />
+                      <span>Verifying Credentials...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4 text-black" />
+                      <span>Unlock Admin</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </>
+        ) : (
+          <>
+            <div className="mb-4">
+              <button 
+                type="button"
+                onClick={() => setIsForgotPassword(false)}
+                className="flex items-center gap-1.5 text-xs font-mono text-[#A0A0A0] hover:text-white transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Login</span>
+              </button>
+            </div>
+            
+            <p className="text-xs text-[#888] font-mono mb-4 leading-relaxed">
+              Enter your administrator email to receive a password recovery link.
+            </p>
+
+            {recoveryMessage && (
+              <div className={`mb-4 p-3 rounded-xs flex items-start gap-2.5 text-xs font-mono animate-in fade-in ${
+                recoveryMessage.type === 'error' 
+                  ? 'bg-red-950/40 border border-red-800/60 text-red-300' 
+                  : 'bg-emerald-950/40 border border-emerald-800/60 text-emerald-300'
+              }`}>
+                {recoveryMessage.type === 'error' ? (
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                ) : (
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                )}
+                <span className="leading-snug">{recoveryMessage.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleRecoverySubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label 
+                  htmlFor="admin-recovery-email" 
+                  className="text-[11px] font-mono uppercase tracking-wider text-[#A0A0A0] block font-medium"
+                >
+                  Admin Email
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-[#666] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    id="admin-recovery-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    required
+                    value={recoveryEmail}
+                    onChange={(e) => setRecoveryEmail(e.target.value)}
+                    placeholder="admin@veritas.internal"
+                    className="w-full min-h-[44px] bg-[#161616] border border-[#2B2B2B] text-white pl-9 pr-3 py-2 text-sm rounded-none font-mono placeholder-[#555] focus:outline-hidden focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/40 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={recoveryLoading}
+                  className="w-full min-h-[44px] bg-[#2B2B2B] hover:bg-[#3B3B3B] active:scale-[0.99] text-white font-bold uppercase text-xs tracking-wider rounded-xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border border-[#3B3B3B]"
+                >
+                  {recoveryLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Sending...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="w-4 h-4" />
+                      <span>Send Recovery Email</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </>
         )}
-
-        {/* Authorization Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <label 
-              htmlFor="admin-unlock-email" 
-              className="text-[11px] font-mono uppercase tracking-wider text-[#A0A0A0] block font-medium"
-            >
-              Admin Email
-            </label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-[#666] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                ref={emailInputRef}
-                id="admin-unlock-email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                autoCapitalize="none"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@veritas.internal"
-                className="w-full min-h-[44px] bg-[#161616] border border-[#2B2B2B] text-white pl-9 pr-3 py-2 text-sm rounded-none font-mono placeholder-[#555] focus:outline-hidden focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/40 transition-all"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label 
-              htmlFor="admin-unlock-password" 
-              className="text-[11px] font-mono uppercase tracking-wider text-[#A0A0A0] block font-medium"
-            >
-              Admin Password
-            </label>
-            <div className="relative">
-              <KeyRound className="w-4 h-4 text-[#666] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                id="admin-unlock-password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full min-h-[44px] bg-[#161616] border border-[#2B2B2B] text-white pl-9 pr-3 py-2 text-sm rounded-none font-mono placeholder-[#555] focus:outline-hidden focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/40 transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Submit Button */}
-          <div className="pt-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full min-h-[44px] bg-[#D4AF37] hover:bg-[#B3932F] active:scale-[0.99] text-black font-bold uppercase text-xs tracking-wider rounded-xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-black" />
-                  <span>Verifying Credentials...</span>
-                </>
-              ) : (
-                <>
-                  <Lock className="w-4 h-4 text-black" />
-                  <span>Unlock Admin</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
 
         {/* Security Footer Notice */}
         <div className="mt-4 pt-3 border-t border-[#1C1C1C] flex items-center justify-between text-[10px] font-mono text-[#666]">
