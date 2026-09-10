@@ -4,10 +4,52 @@ import { getServerSupabaseConfig } from './config';
 /**
  * Server-side Supabase client initializer (Using anon key or user JWT)
  */
-export function createServerSupabaseClient(token?: string): SupabaseClient | null {
+export function createServerSupabaseClient(token?: string, refreshToken?: string): SupabaseClient | null {
   const { url, anonKey, isConfigured } = getServerSupabaseConfig();
   if (!isConfigured) {
     return null;
+  }
+
+  if (token) {
+    const storage: Record<string, string> = {};
+    const storageKey = 'supabase.auth.token';
+
+    let expiresAt = Math.floor(Date.now() / 1000) + 3600;
+    try {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+        if (payload && typeof payload.exp === 'number') {
+          expiresAt = payload.exp;
+        }
+      }
+    } catch {
+      // Keep default 1 hour expiration
+    }
+
+    storage[storageKey] = JSON.stringify({
+      access_token: token,
+      refresh_token: refreshToken || 'recovery-session-refresh',
+      expires_at: expiresAt,
+    });
+
+    return createClient(url, anonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: false,
+        storageKey,
+        storage: {
+          getItem: (key: string) => storage[key] || null,
+          setItem: (key: string, value: string) => { storage[key] = value; },
+          removeItem: (key: string) => { delete storage[key]; },
+        },
+      },
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    });
   }
 
   return createClient(url, anonKey, {
@@ -15,13 +57,6 @@ export function createServerSupabaseClient(token?: string): SupabaseClient | nul
       persistSession: false,
       autoRefreshToken: false,
     },
-    global: token
-      ? {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      : undefined,
   });
 }
 

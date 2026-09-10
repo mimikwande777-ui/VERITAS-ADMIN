@@ -2,132 +2,22 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getSupabaseClient } from '@/lib/supabase/client';
 import { Lock, ShieldCheck, KeyRound, AlertCircle, CheckCircle2, ArrowRight, Loader2 } from 'lucide-react';
 
 export default function AdminResetPasswordPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [checkingSession, setCheckingSession] = useState(true);
-  const [hasRecoverySession, setHasRecoverySession] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const initRecoveryCheck = async () => {
-      // 1. Check if URL contains error=invalid
-      if (typeof window !== 'undefined') {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('error') === 'invalid') {
-          if (isMounted) {
-            setHasRecoverySession(false);
-            setError('Password recovery link is invalid or expired. Request a new recovery email.');
-            setCheckingSession(false);
-          }
-          return;
-        }
+  const [error, setError] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('error') === 'invalid') {
+        return 'Password recovery link is invalid or expired. Request a new recovery email.';
       }
-
-      const client = getSupabaseClient();
-
-      try {
-        // 2. Handle PKCE code exchange if present in search params
-        if (typeof window !== 'undefined' && client) {
-          const urlParams = new URLSearchParams(window.location.search);
-          const code = urlParams.get('code');
-
-          if (code) {
-            const { error: exchangeError } = await client.auth.exchangeCodeForSession(code);
-            if (exchangeError) {
-              console.error('[Recovery] Session exchange error');
-            }
-          }
-        }
-
-        // 3. Check client-side Supabase session
-        if (client) {
-          const { data: { session } } = await client.auth.getSession();
-          if (session && isMounted) {
-            setHasRecoverySession(true);
-            setError(null);
-            setCheckingSession(false);
-            return;
-          }
-        }
-
-        // 4. Check server-persisted cookie session (from /auth/confirm)
-        const serverCheck = await fetch('/api/admin/reset-password', {
-          method: 'GET',
-          headers: { 'Cache-Control': 'no-cache' },
-        }).catch(() => null);
-
-        if (serverCheck?.ok) {
-          const checkData = await serverCheck.json().catch(() => ({}));
-          if (checkData.hasSession && isMounted) {
-            setHasRecoverySession(true);
-            setError(null);
-            setCheckingSession(false);
-            return;
-          }
-        }
-
-        // 5. Short delay in case browser hash token is processing
-        setTimeout(async () => {
-          if (!isMounted) return;
-          if (client) {
-            const { data: { session: delayedSession } } = await client.auth.getSession();
-            if (delayedSession && isMounted) {
-              setHasRecoverySession(true);
-              setError(null);
-              setCheckingSession(false);
-              return;
-            }
-          }
-
-          if (isMounted) {
-            setHasRecoverySession(false);
-            setError('Password recovery link is invalid or expired. Request a new recovery email.');
-            setCheckingSession(false);
-          }
-        }, 500);
-
-      } catch {
-        if (isMounted) {
-          setHasRecoverySession(false);
-          setError('Password recovery link is invalid or expired. Request a new recovery email.');
-          setCheckingSession(false);
-        }
-      }
-    };
-
-    void initRecoveryCheck();
-
-    const client = getSupabaseClient();
-    let subscription: { unsubscribe: () => void } | null = null;
-
-    if (client) {
-      const authSub = client.auth.onAuthStateChange((event, session) => {
-        if (event === 'PASSWORD_RECOVERY' || (session && event === 'SIGNED_IN')) {
-          if (isMounted) {
-            setHasRecoverySession(true);
-            setError(null);
-            setCheckingSession(false);
-          }
-        }
-      });
-      subscription = authSub.data.subscription;
     }
-
-    return () => {
-      isMounted = false;
-      if (subscription) {
-        subscription.unsubscribe();
-      }
-    };
-  }, []);
+    return null;
+  });
+  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,7 +29,7 @@ export default function AdminResetPasswordPage() {
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match. Please verify and try again.');
+      setError('Passwords do not match.');
       return;
     }
 
@@ -151,47 +41,34 @@ export default function AdminResetPasswordPage() {
     setLoading(true);
 
     try {
-      const client = getSupabaseClient();
-      let updated = false;
+      const response = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          password,
+          confirmPassword,
+        }),
+      });
 
-      // Try browser Supabase client first if it has an active session
-      if (client) {
-        const { data: { session } } = await client.auth.getSession();
-        if (session) {
-          const { error: updateError } = await client.auth.updateUser({
-            password,
-          });
+      const data = await response.json().catch(() => ({}));
 
-          if (!updateError) {
-            updated = true;
-          } else {
-            console.error('[Recovery] Client password update failed');
-          }
-        }
+      if (response.status === 401) {
+        setError('Password recovery session is missing or expired. Request a new recovery email.');
+        return;
       }
 
-      // If not updated via browser client, update via server endpoint using HttpOnly cookie session
-      if (!updated) {
-        const res = await fetch('/api/admin/reset-password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password }),
-        });
-
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || 'Failed to update password. Recovery session may have expired.');
-        }
-        updated = true;
+      if (!response.ok || !data.success) {
+        setError(data.error || 'Failed to update password.');
+        return;
       }
 
-      if (updated) {
-        setSuccess(true);
-        setPassword('');
-        setConfirmPassword('');
-      }
-    } catch (err: any) {
-      setError(err?.message || 'An unexpected error occurred while updating your password.');
+      setSuccess(true);
+      setPassword('');
+      setConfirmPassword('');
+    } catch {
+      setError('Network error while updating password. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -218,13 +95,7 @@ export default function AdminResetPasswordPage() {
           </p>
         </div>
 
-        {/* Loading Session Checking State */}
-        {checkingSession ? (
-          <div className="py-12 text-center flex flex-col items-center justify-center space-y-4">
-            <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
-            <p className="text-sm text-zinc-400">Verifying secure recovery session...</p>
-          </div>
-        ) : success ? (
+        {success ? (
           /* Success State */
           <div className="space-y-6 text-center py-2 animate-fade-in">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 mb-1">
@@ -242,13 +113,13 @@ export default function AdminResetPasswordPage() {
                 href="/admin"
                 className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold text-sm transition-all duration-150 shadow-lg shadow-amber-500/10 active:scale-[0.99]"
               >
-                <span>Return to VERITAS Admin</span>
+                <span>Return to Admin Login</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
           </div>
         ) : (
-          /* Reset Form or Error State */
+          /* Reset Form */
           <div className="space-y-6">
             {error && (
               <div className="p-4 rounded-xl bg-rose-950/50 border border-rose-800/60 text-rose-200 text-xs flex items-start gap-3">
@@ -257,76 +128,74 @@ export default function AdminResetPasswordPage() {
               </div>
             )}
 
-            {hasRecoverySession ? (
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-2">
-                    New Password
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
-                      <KeyRound className="w-4 h-4" />
-                    </div>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      disabled={loading}
-                      required
-                      minLength={8}
-                      className="w-full pl-10 pr-4 py-3 bg-zinc-950/80 border border-zinc-800 rounded-xl text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-amber-500/80 focus:ring-1 focus:ring-amber-500/80 transition-all"
-                    />
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-2">
+                  New Password
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
+                    <KeyRound className="w-4 h-4" />
                   </div>
-                  <p className="text-[11px] text-zinc-500 mt-1.5">Minimum 8 characters.</p>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    disabled={loading}
+                    required
+                    minLength={8}
+                    className="w-full pl-10 pr-4 py-3 bg-zinc-950/80 border border-zinc-800 rounded-xl text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-amber-500/80 focus:ring-1 focus:ring-amber-500/80 transition-all"
+                  />
                 </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-2">
-                    Confirm New Password
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
-                      <Lock className="w-4 h-4" />
-                    </div>
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      disabled={loading}
-                      required
-                      minLength={8}
-                      className="w-full pl-10 pr-4 py-3 bg-zinc-950/80 border border-zinc-800 rounded-xl text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-amber-500/80 focus:ring-1 focus:ring-amber-500/80 transition-all"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-semibold text-sm rounded-xl shadow-lg shadow-amber-500/10 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.99]"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Updating Password...</span>
-                    </>
-                  ) : (
-                    <span>Update Password</span>
-                  )}
-                </button>
-              </form>
-            ) : (
-              <div className="pt-2 text-center">
-                <Link
-                  href="/admin"
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium transition-colors"
-                >
-                  <span>Return to Admin Login</span>
-                </Link>
+                <p className="text-[11px] text-zinc-500 mt-1.5">Minimum 8 characters.</p>
               </div>
-            )}
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-2">
+                  Confirm New Password
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    disabled={loading}
+                    required
+                    minLength={8}
+                    className="w-full pl-10 pr-4 py-3 bg-zinc-950/80 border border-zinc-800 rounded-xl text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-amber-500/80 focus:ring-1 focus:ring-amber-500/80 transition-all"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-semibold text-sm rounded-xl shadow-lg shadow-amber-500/10 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.99]"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Updating password...</span>
+                  </>
+                ) : (
+                  <span>Update Password</span>
+                )}
+              </button>
+            </form>
+
+            <div className="pt-2 text-center">
+              <Link
+                href="/admin"
+                className="inline-flex items-center justify-center gap-2 text-zinc-400 hover:text-zinc-200 text-xs font-medium transition-colors"
+              >
+                <span>Cancel and return to Admin</span>
+              </Link>
+            </div>
           </div>
         )}
 
