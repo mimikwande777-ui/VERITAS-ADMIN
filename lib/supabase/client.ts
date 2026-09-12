@@ -1,29 +1,39 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { isSupabaseConfigured, getSupabaseEnvConfig } from './config';
+import { createBrowserClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { isSupabaseConfigured } from './config';
 
 let clientInstance: SupabaseClient | null = null;
 
 /**
- * Returns an initialized Supabase client if configured, or null if credentials are missing.
- * Does NOT throw errors or crash if env variables are unconfigured.
+ * Creates or retrieves the singleton Supabase browser client.
+ * Uses NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.
+ * Returns null if credentials are not configured.
  */
-export function getSupabaseClient(): SupabaseClient | null {
-  if (!isSupabaseConfigured()) {
+export function createSupabaseBrowserClient(): SupabaseClient | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
     return null;
   }
 
-  const { url, key } = getSupabaseEnvConfig();
-
   if (typeof window === 'undefined') {
-    return createClient(url, key);
+    return createBrowserClient(url, anonKey);
   }
 
   if (!clientInstance) {
-    clientInstance = createClient(url, key);
+    clientInstance = createBrowserClient(url, anonKey);
   }
 
   return clientInstance;
 }
+
+/**
+ * Returns an initialized Supabase client if configured, or null if credentials are missing.
+ * Backward-compatible alias for existing codebase callers.
+ */
+export const getSupabaseClient = createSupabaseBrowserClient;
+export const getSupabaseBrowserClient = createSupabaseBrowserClient;
 
 export async function testSupabaseConnection(): Promise<{ success: boolean; message: string; details?: any }> {
   if (!isSupabaseConfigured()) {
@@ -71,5 +81,6 @@ export async function testSupabaseConnection(): Promise<{ success: boolean; mess
     };
   }
 }
+
 
 

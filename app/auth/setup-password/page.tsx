@@ -10,10 +10,9 @@ import {
   AlertCircle, 
   CheckCircle2, 
   Loader2, 
-  ArrowRight,
-  Sparkles
+  ArrowRight
 } from 'lucide-react';
-import { getSupabaseClient } from '@/lib/supabase/client';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 export default function SetupPasswordPage() {
   const router = useRouter();
@@ -37,14 +36,24 @@ export default function SetupPasswordPage() {
 
     async function checkAuthSession() {
       try {
-        const supabase = getSupabaseClient();
+        const supabase = createSupabaseBrowserClient();
         
+        // If Supabase client configuration is missing in the browser
+        if (!supabase) {
+          if (isMounted) {
+            setHasValidSession(false);
+            setError('Authentication configuration is unavailable.');
+            setIsVerifyingSession(false);
+          }
+          return;
+        }
+
         // Parse URL params for any initial error flags
         if (typeof window !== 'undefined') {
           const urlParams = new URLSearchParams(window.location.search);
           if (urlParams.get('error') === 'invalid') {
             if (isMounted) {
-              setError('Your password setup link is invalid or expired.');
+              setError('Your password setup session is invalid or expired.');
               setIsVerifyingSession(false);
             }
             return;
@@ -52,7 +61,7 @@ export default function SetupPasswordPage() {
 
           // Handle hash fragments (e.g., #access_token=...&refresh_token=...)
           const hash = window.location.hash;
-          if (hash && hash.includes('access_token=') && supabase) {
+          if (hash && hash.includes('access_token=')) {
             const hashParams = new URLSearchParams(hash.substring(1));
             const accessToken = hashParams.get('access_token');
             const refreshToken = hashParams.get('refresh_token');
@@ -86,19 +95,17 @@ export default function SetupPasswordPage() {
         }
 
         // Check active client session
-        if (supabase) {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            if (isMounted) {
-              setHasValidSession(true);
-              setUserEmail(session.user.email || null);
-              setIsVerifyingSession(false);
-            }
-            return;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          if (isMounted) {
+            setHasValidSession(true);
+            setUserEmail(session.user.email || null);
+            setIsVerifyingSession(false);
           }
+          return;
         }
 
-        // Fallback: check server HttpOnly cookies
+        // Fallback: check server HttpOnly cookies & restore session to browser client
         const serverCheck = await fetch('/api/admin/setup-password/sync', {
           method: 'GET',
           headers: { 'Cache-Control': 'no-cache' },
@@ -107,6 +114,13 @@ export default function SetupPasswordPage() {
         if (serverCheck.ok) {
           const serverData = await serverCheck.json();
           if (serverData.authenticated && serverData.user) {
+            if (serverData.session?.access_token) {
+              await supabase.auth.setSession({
+                access_token: serverData.session.access_token,
+                refresh_token: serverData.session.refresh_token || '',
+              }).catch(() => null);
+            }
+
             if (isMounted) {
               setHasValidSession(true);
               setUserEmail(serverData.user.email || null);
@@ -119,13 +133,13 @@ export default function SetupPasswordPage() {
         // No valid session found
         if (isMounted) {
           setHasValidSession(false);
-          setError('Your password setup link is invalid or expired.');
+          setError('Your password setup session is invalid or expired.');
           setIsVerifyingSession(false);
         }
-      } catch (err: any) {
+      } catch {
         if (isMounted) {
           setHasValidSession(false);
-          setError('Your password setup link is invalid or expired.');
+          setError('Your password setup session is invalid or expired.');
           setIsVerifyingSession(false);
         }
       }
@@ -154,16 +168,24 @@ export default function SetupPasswordPage() {
     }
 
     if (newPassword.length < 8) {
-      setError('Password does not meet requirements.');
+      setError('Password must be at least 8 characters.');
       return;
     }
 
     setLoading(true);
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = createSupabaseBrowserClient();
       if (!supabase) {
-        setError('Authentication client is not configured.');
+        setError('Authentication configuration is unavailable.');
+        setLoading(false);
+        return;
+      }
+
+      // Confirm authenticated session/user exists
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setError('Your password setup session is invalid or expired.');
         setLoading(false);
         return;
       }
@@ -180,7 +202,7 @@ export default function SetupPasswordPage() {
         } else if (updateError.message.toLowerCase().includes('session') || 
                    updateError.message.toLowerCase().includes('auth') ||
                    updateError.message.toLowerCase().includes('jwt')) {
-          setError('Your password setup link is invalid or expired.');
+          setError('Your password setup session is invalid or expired.');
         } else {
           setError(updateError.message || 'Password does not meet requirements.');
         }
@@ -189,14 +211,14 @@ export default function SetupPasswordPage() {
       }
 
       // Step 5: Synchronize session cookies
-      const session = data?.user ? (await supabase.auth.getSession()).data.session : null;
-      if (session) {
+      const updatedSession = data?.user ? (await supabase.auth.getSession()).data.session : null;
+      if (updatedSession) {
         await fetch('/api/admin/setup-password/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            accessToken: session.access_token,
-            refreshToken: session.refresh_token,
+            accessToken: updatedSession.access_token,
+            refreshToken: updatedSession.refresh_token,
           }),
         }).catch(() => null);
       }
@@ -257,7 +279,7 @@ export default function SetupPasswordPage() {
           /* Loading State */
           <div className="py-12 text-center space-y-3">
             <Loader2 className="w-8 h-8 animate-spin text-[#D4AF37] mx-auto" />
-            <p className="text-xs text-zinc-400 font-mono">Verifying invitation session...</p>
+            <p className="text-xs text-zinc-400 font-mono">Verifying password setup session...</p>
           </div>
         ) : success ? (
           /* Success State */
@@ -299,7 +321,7 @@ export default function SetupPasswordPage() {
             {!hasValidSession && !error && (
               <div className="p-3.5 bg-amber-950/40 border border-amber-800/60 rounded-xs flex items-start gap-2.5 text-amber-300 text-xs">
                 <AlertCircle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
-                <div className="flex-1 leading-relaxed">Your invitation session is invalid or expired.</div>
+                <div className="flex-1 leading-relaxed">Your password setup session is invalid or expired.</div>
               </div>
             )}
 
@@ -396,3 +418,4 @@ export default function SetupPasswordPage() {
     </div>
   );
 }
+

@@ -11,7 +11,7 @@ const DEFAULT_SUPABASE_URL = 'https://cdzvmnixlhjjrpyoaemg.supabase.co';
  * Used by browser storefront, public queries, and client-side Supabase Auth
  */
 export function getPublicSupabaseConfig() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
   
   const isConfigured = Boolean(

@@ -140,6 +140,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       authenticated: true,
+      session: {
+        access_token: token,
+        refresh_token: refreshToken || '',
+      },
       user: {
         id: user.id,
         email: user.email,
