@@ -13,13 +13,16 @@ export async function GET(request: NextRequest) {
   // Determine destination path safely (must start with / and not contain protocol)
   let destinationPath = '/auth/setup-password';
   if (nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')) {
-    destinationPath = nextParam;
-  } else if (type === 'recovery' && !nextParam) {
-    destinationPath = '/admin/reset-password';
+    // If legacy link sent /admin/reset-password, route to canonical /auth/setup-password
+    if (nextParam === '/admin/reset-password' || nextParam.startsWith('/admin/reset-password')) {
+      destinationPath = '/auth/setup-password';
+    } else {
+      destinationPath = nextParam;
+    }
   }
 
   // Safe error redirect URL
-  const errorRedirect = new URL(`${destinationPath.includes('setup-password') ? '/auth/setup-password' : '/admin/reset-password'}?error=invalid`, request.url);
+  const errorRedirect = new URL('/auth/setup-password?error=invalid', request.url);
 
   // Verification requires either token_hash or code
   if (!token_hash && !code) {

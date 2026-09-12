@@ -24,8 +24,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const adminAppUrl = 
+      process.env.ADMIN_APP_URL || 
+      process.env.NEXT_PUBLIC_SITE_URL || 
+      'https://veritas-admin-three.vercel.app';
+    const cleanBaseUrl = adminAppUrl.split('?')[0].replace(/\/$/, '');
+    const redirectTo = `${cleanBaseUrl}/auth/confirm?next=/auth/setup-password`;
+
     const { error } = await client.auth.resetPasswordForEmail(email, {
-      redirectTo: "https://veritas-admin-three.vercel.app/auth/confirm?next=/admin/reset-password",
+      redirectTo,
     });
 
     if (error) {

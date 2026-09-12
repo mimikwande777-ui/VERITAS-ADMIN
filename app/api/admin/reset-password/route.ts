@@ -150,8 +150,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const allowedRoles = ['super_admin', 'admin', 'manager'];
-    if (!allowedRoles.includes(adminRecord.role)) {
+    const allowedRoles = ['super_admin', 'admin', 'manager', 'operations', 'marketing', 'support', 'viewer'];
+    if (!allowedRoles.includes(adminRecord.role?.toLowerCase())) {
       return NextResponse.json(
         { success: false, error: 'Forbidden: Insufficient administrative privileges.' },
         { status: 403 }

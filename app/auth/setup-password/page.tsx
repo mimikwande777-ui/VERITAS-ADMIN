@@ -44,7 +44,7 @@ export default function SetupPasswordPage() {
           const urlParams = new URLSearchParams(window.location.search);
           if (urlParams.get('error') === 'invalid') {
             if (isMounted) {
-              setError('Your invitation session is invalid or expired.');
+              setError('Your password setup link is invalid or expired.');
               setIsVerifyingSession(false);
             }
             return;
@@ -119,13 +119,13 @@ export default function SetupPasswordPage() {
         // No valid session found
         if (isMounted) {
           setHasValidSession(false);
-          setError('Your invitation session is invalid or expired.');
+          setError('Your password setup link is invalid or expired.');
           setIsVerifyingSession(false);
         }
       } catch (err: any) {
         if (isMounted) {
           setHasValidSession(false);
-          setError('Your invitation session is invalid or expired.');
+          setError('Your password setup link is invalid or expired.');
           setIsVerifyingSession(false);
         }
       }
@@ -180,7 +180,7 @@ export default function SetupPasswordPage() {
         } else if (updateError.message.toLowerCase().includes('session') || 
                    updateError.message.toLowerCase().includes('auth') ||
                    updateError.message.toLowerCase().includes('jwt')) {
-          setError('Your invitation session is invalid or expired.');
+          setError('Your password setup link is invalid or expired.');
         } else {
           setError(updateError.message || 'Password does not meet requirements.');
         }
