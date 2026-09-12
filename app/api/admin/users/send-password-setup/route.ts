@@ -110,6 +110,7 @@ export async function POST(request: NextRequest) {
     // 5. Build stable production redirect URL
     const adminAppUrl = 
       process.env.ADMIN_APP_URL || 
+      process.env.APP_URL || 
       process.env.NEXT_PUBLIC_SITE_URL || 
       'https://veritas-admin-three.vercel.app';
     

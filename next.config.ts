@@ -1,5 +1,9 @@
 import type {NextConfig} from 'next';
 
+// Build-time validation printout (Never prints values)
+console.log(`NEXT_PUBLIC_SUPABASE_URL PRESENT: ${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'YES' : 'NO'}`);
+console.log(`NEXT_PUBLIC_SUPABASE_ANON_KEY PRESENT: ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'YES' : 'NO'}`);
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   devIndicators: false,
@@ -45,7 +49,6 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
   },
 
-  serverExternalPackages: ['@supabase/supabase-js'],
   transpilePackages: ['motion'],
   webpack: (config, {dev}) => {
     // HMR is disabled in AI Studio via DISABLE_HMR env var.

@@ -233,6 +233,7 @@ export async function POST(request: NextRequest) {
 
     const adminAppUrl = 
       process.env.ADMIN_APP_URL || 
+      process.env.APP_URL || 
       process.env.NEXT_PUBLIC_SITE_URL || 
       'https://veritas-admin-three.vercel.app';
     const cleanBaseUrl = adminAppUrl.split('?')[0].replace(/\/$/, '');

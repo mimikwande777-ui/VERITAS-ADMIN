@@ -12,7 +12,7 @@ import {
   Loader2, 
   ArrowRight
 } from 'lucide-react';
-import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { getBrowserClient, getBrowserDiagnostic } from '@/lib/supabase/browser';
 
 export default function SetupPasswordPage() {
   const router = useRouter();
@@ -24,6 +24,7 @@ export default function SetupPasswordPage() {
   const [isVerifyingSession, setIsVerifyingSession] = useState(true);
   const [hasValidSession, setHasValidSession] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [diagnostic, setDiagnostic] = useState<{ hasPublicUrl: boolean; hasPublicAnonKey: boolean; browserClientCreated: boolean } | null>(null);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +37,12 @@ export default function SetupPasswordPage() {
 
     async function checkAuthSession() {
       try {
-        const supabase = createSupabaseBrowserClient();
+        const diag = getBrowserDiagnostic();
+        if (isMounted) {
+          setDiagnostic(diag);
+        }
+
+        const supabase = getBrowserClient();
         
         // If Supabase client configuration is missing in the browser
         if (!supabase) {
@@ -94,12 +100,12 @@ export default function SetupPasswordPage() {
           }
         }
 
-        // Check active client session
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
+        // Check active client session & verify user with getUser()
+        const { data: { user }, error: userErr } = await supabase.auth.getUser();
+        if (user && !userErr) {
           if (isMounted) {
             setHasValidSession(true);
-            setUserEmail(session.user.email || null);
+            setUserEmail(user.email || null);
             setIsVerifyingSession(false);
           }
           return;
@@ -175,16 +181,16 @@ export default function SetupPasswordPage() {
     setLoading(true);
 
     try {
-      const supabase = createSupabaseBrowserClient();
+      const supabase = getBrowserClient();
       if (!supabase) {
         setError('Authentication configuration is unavailable.');
         setLoading(false);
         return;
       }
 
-      // Confirm authenticated session/user exists
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      // Confirm authenticated session/user exists using getUser()
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
         setError('Your password setup session is invalid or expired.');
         setLoading(false);
         return;
@@ -409,7 +415,16 @@ export default function SetupPasswordPage() {
         )}
 
         {/* Footer */}
-        <div className="mt-8 pt-4 border-t border-[#1e1e24] text-center">
+        <div className="mt-8 pt-4 border-t border-[#1e1e24] text-center space-y-2">
+          {diagnostic && (
+            <div className="text-[10px] font-mono text-zinc-600 flex flex-wrap justify-center items-center gap-x-3 gap-y-1">
+              <span>hasPublicUrl: <span className={diagnostic.hasPublicUrl ? "text-emerald-500/80" : "text-red-500/80"}>{diagnostic.hasPublicUrl ? 'true' : 'false'}</span></span>
+              <span>&bull;</span>
+              <span>hasPublicAnonKey: <span className={diagnostic.hasPublicAnonKey ? "text-emerald-500/80" : "text-red-500/80"}>{diagnostic.hasPublicAnonKey ? 'true' : 'false'}</span></span>
+              <span>&bull;</span>
+              <span>browserClientCreated: <span className={diagnostic.browserClientCreated ? "text-emerald-500/80" : "text-red-500/80"}>{diagnostic.browserClientCreated ? 'true' : 'false'}</span></span>
+            </div>
+          )}
           <p className="text-[10px] text-zinc-600 font-mono tracking-wider">
             VERITAS LUXURY E-COMMERCE &copy; {new Date().getFullYear()} &bull; ALL RIGHTS RESERVED
           </p>
