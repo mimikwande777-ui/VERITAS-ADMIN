@@ -6,8 +6,8 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function POST(request: NextRequest) {
-  // Authoritative admin verification: valid Supabase JWT + verified matching admin_users record
-  const authCheck = await requireAdmin(request);
+  // Authoritative admin verification: valid Supabase JWT + verified matching admin_users record with canManageInventory
+  const authCheck = await requireAdmin(request, { requiredPermission: 'canEditInventory' });
   if (!authCheck.authorized) {
     return authCheck.errorResponse;
   }

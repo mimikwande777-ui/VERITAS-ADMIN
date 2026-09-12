@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchFullOrdersFromSupabase, updateOrderStatusInSupabase } from '@/lib/supabase/orders';
 import { createServiceRoleSupabaseClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/supabase/require-admin';
+import { hasPermission } from '@/lib/auth-types';
+import { sanitizeCustomerForRole } from '@/lib/customer-privacy';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
-  const authCheck = await requireAdmin(request);
+  const authCheck = await requireAdmin(request, { requiredPermission: 'canViewOrders' });
   if (!authCheck.authorized) {
     return authCheck.errorResponse;
   }
@@ -38,11 +40,23 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // Check if role has access to unmasked customer personal contact info
+  const canViewSensitive = hasPermission(authCheck.admin.role, 'canViewSensitiveCustomers');
+  const isFulfilment = hasPermission(authCheck.admin.role, 'canUpdateOrderFulfilment');
+
+  const sanitizedOrders = orders.map(ord => 
+    sanitizeCustomerForRole(ord, canViewSensitive, isFulfilment)
+  );
+
+  const sanitizedRecords = records.map(rec => 
+    sanitizeCustomerForRole(rec, canViewSensitive, isFulfilment)
+  );
+
   return NextResponse.json({
     success: true,
-    count: orders.length,
-    orders,
-    records
+    count: sanitizedOrders.length,
+    orders: sanitizedOrders,
+    records: sanitizedRecords
   }, {
     headers: {
       'Cache-Control': 'no-store, max-age=0, must-revalidate',
@@ -51,7 +65,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const authCheck = await requireAdmin(request);
+  const authCheck = await requireAdmin(request, { requiredPermission: 'canUpdateOrderFulfilment' });
   if (!authCheck.authorized) {
     return authCheck.errorResponse;
   }

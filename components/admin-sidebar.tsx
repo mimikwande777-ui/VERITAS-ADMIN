@@ -7,40 +7,83 @@ import {
   Users, 
   Settings, 
   Tags, 
-  Image as ImageIcon,
-  BarChart3,
-  Package,
-  Layers,
-  Activity,
-  TicketPercent,
-  ShieldCheck,
-  ShieldAlert,
-  Globe,
-  ExternalLink,
-  LogOut,
-  Lock,
-  Unlock
+  Image as ImageIcon, 
+  BarChart3, 
+  Package, 
+  Layers, 
+  Activity, 
+  TicketPercent, 
+  UserCheck,
+  ShieldCheck, 
+  Globe, 
+  ExternalLink, 
+  LogOut, 
+  Lock, 
+  Unlock 
 } from 'lucide-react';
 import { useAdminAuth } from '@/lib/auth-context';
 import { PWAInstallButton } from '@/components/pwa-install-button';
+import { PermissionString } from '@/lib/auth-types';
 
-const navigation = [
+interface NavItemConfig {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  requiredPermission?: PermissionString;
+  superAdminOnly?: boolean;
+}
+
+const ALL_NAVIGATION_ITEMS: NavItemConfig[] = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-  { name: 'Products', href: '/admin/products', icon: ShoppingBag },
-  { name: 'Inventory', href: '/admin/inventory', icon: Package },
-  { name: 'Orders & OTC', href: '/admin/orders', icon: Tags },
-  { name: 'Sales & Reports', href: '/admin/sales', icon: BarChart3 },
-  { name: 'Collections', href: '/admin/collections', icon: Layers },
-  { name: 'Categories', href: '/admin/categories', icon: Tags },
-  { name: 'Customers', href: '/admin/customers', icon: Users },
-  { name: 'Discounts', href: '/admin/discounts', icon: TicketPercent },
-  { name: 'Media Library', href: '/admin/media', icon: ImageIcon },
-  { name: 'Activity Log', href: '/admin/activity', icon: Activity },
-  { name: 'Settings', href: '/admin/settings', icon: Settings },
+  { name: 'Products', href: '/admin/products', icon: ShoppingBag, requiredPermission: 'canViewProducts' },
+  { name: 'Inventory', href: '/admin/inventory', icon: Package, requiredPermission: 'canViewInventory' },
+  { name: 'Orders & OTC', href: '/admin/orders', icon: Tags, requiredPermission: 'canViewOrders' },
+  { name: 'Sales & Reports', href: '/admin/sales', icon: BarChart3, requiredPermission: 'canViewSales' },
+  { name: 'Collections', href: '/admin/collections', icon: Layers, requiredPermission: 'canViewCollections' },
+  { name: 'Categories', href: '/admin/categories', icon: Tags, requiredPermission: 'canViewCategories' },
+  { name: 'Customers', href: '/admin/customers', icon: Users, requiredPermission: 'canViewCustomers' },
+  { name: 'Discounts', href: '/admin/discounts', icon: TicketPercent, requiredPermission: 'canViewDiscounts' },
+  { name: 'Media Library', href: '/admin/media', icon: ImageIcon, requiredPermission: 'canViewMedia' },
+  { name: 'Admin Users', href: '/admin/users', icon: UserCheck, requiredPermission: 'canManageUsers', superAdminOnly: true },
+  { name: 'Activity Log', href: '/admin/activity', icon: Activity, requiredPermission: 'canViewActivityLog' },
+  { name: 'Settings', href: '/admin/settings', icon: Settings, requiredPermission: 'canManageSettings', superAdminOnly: true },
 ];
 
 export function AdminSidebar({ currentPath, onNavigate }: { currentPath: string; onNavigate?: () => void }) {
   const { user, role, isAuthenticated, openUnlockModal, signOut, hasAccess } = useAdminAuth();
+
+  // Filter visible items dynamically according to authenticated partner role permissions
+  const visibleNavItems = ALL_NAVIGATION_ITEMS.filter((item) => {
+    // If not authenticated, show essential dashboard navigation
+    if (!isAuthenticated) {
+      if (item.superAdminOnly) return false;
+      return true;
+    }
+    if (item.superAdminOnly) {
+      return role === 'super_admin';
+    }
+    if (item.requiredPermission) {
+      return hasAccess(item.requiredPermission);
+    }
+    return true;
+  });
+
+  const getRoleInitials = (roleStr?: string | null) => {
+    if (!roleStr) return 'AD';
+    if (roleStr === 'super_admin') return 'SA';
+    if (roleStr === 'operations') return 'OP';
+    if (roleStr === 'marketing') return 'MK';
+    if (roleStr === 'finance') return 'FN';
+    return 'AD';
+  };
+
+  const getRoleBadgeColor = (roleStr?: string | null) => {
+    if (roleStr === 'super_admin') return 'bg-amber-950/60 text-[#D4AF37] border-[#D4AF37]/40';
+    if (roleStr === 'operations') return 'bg-blue-950/60 text-blue-400 border-blue-500/40';
+    if (roleStr === 'marketing') return 'bg-purple-950/60 text-purple-300 border-purple-500/40';
+    if (roleStr === 'finance') return 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40';
+    return 'bg-amber-950/60 text-[#D4AF37] border-[#D4AF37]/40';
+  };
 
   return (
     <div className="flex flex-col w-full md:w-64 bg-[#0F0F0F] border-r border-[#1F1F1F] text-[#E0E0E0] h-full min-h-full">
@@ -78,13 +121,16 @@ export function AdminSidebar({ currentPath, onNavigate }: { currentPath: string;
       
       {/* NAVIGATION ITEMS */}
       <div className="flex-1 overflow-y-auto py-3">
-        <div className="px-6 pb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-[#666]">
-          Navigation
+        <div className="px-6 pb-2 flex items-center justify-between">
+          <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#666]">Navigation</span>
+          {isAuthenticated && role && (
+            <span className="text-[9px] font-mono text-[#888] uppercase">
+              {role.replace('_', ' ')}
+            </span>
+          )}
         </div>
         <nav className="space-y-0.5">
-          {navigation.map((item) => {
-            // Optional: visual distinction for restricted items like Settings for non-super-admin
-            const isSettingsRestricted = item.href === '/admin/settings' && !hasAccess('canManageSettings');
+          {visibleNavItems.map((item) => {
             const isActive = currentPath === item.href || (item.href !== '/admin/dashboard' && currentPath.startsWith(item.href));
             return (
               <Link
@@ -101,8 +147,10 @@ export function AdminSidebar({ currentPath, onNavigate }: { currentPath: string;
                   <item.icon className={`mr-3 h-4 w-4 shrink-0 ${isActive ? 'text-[#D4AF37]' : 'text-[#666] group-hover:text-white'}`} />
                   <span>{item.name}</span>
                 </div>
-                {isSettingsRestricted && (
-                  <span className="text-[9px] font-mono text-[#555] group-hover:text-amber-500/70">SA</span>
+                {item.superAdminOnly && (
+                  <span className="text-[9px] font-mono text-[#777] bg-[#161616] px-1 py-0.5 rounded border border-[#262626]">
+                    SA
+                  </span>
                 )}
               </Link>
             );
@@ -115,10 +163,10 @@ export function AdminSidebar({ currentPath, onNavigate }: { currentPath: string;
         <div className="flex items-center justify-between text-[#888] text-[10px] font-mono uppercase tracking-wider">
           <span className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${isAuthenticated ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
-            {isAuthenticated ? 'SYS AUTHORIZED' : 'SECURE GATEWAY'}
+            {isAuthenticated ? 'RBAC ACTIVE' : 'SECURE GATEWAY'}
           </span>
-          <span className="text-[#D4AF37] font-bold bg-amber-950/30 px-1.5 py-0.5 rounded-xs border border-[#D4AF37]/30">
-            {isAuthenticated ? 'ADMIN CORE' : 'LOCKED'}
+          <span className={`font-bold px-1.5 py-0.5 rounded-xs border text-[9px] font-mono uppercase ${getRoleBadgeColor(role)}`}>
+            {isAuthenticated && role ? role.replace('_', ' ') : 'LOCKED'}
           </span>
         </div>
 
@@ -126,7 +174,7 @@ export function AdminSidebar({ currentPath, onNavigate }: { currentPath: string;
           <div className="p-2.5 rounded-xs bg-[#141414] border border-[#222] flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 overflow-hidden">
               <div className="w-8 h-8 rounded-xs bg-[#222] border border-[#333] flex items-center justify-center text-xs font-bold text-[#D4AF37] shrink-0">
-                {role === 'super_admin' ? 'SA' : role === 'admin' ? 'AD' : 'MG'}
+                {getRoleInitials(role)}
               </div>
               <div className="overflow-hidden">
                 <div className="flex items-center gap-1">
@@ -134,7 +182,7 @@ export function AdminSidebar({ currentPath, onNavigate }: { currentPath: string;
                   <ShieldCheck className="w-3 h-3 text-[#D4AF37] shrink-0" />
                 </div>
                 <p className="text-[10px] text-[#888] font-mono tracking-tight truncate">
-                  {role ? role.replace('_', ' ').toUpperCase() : 'ADMIN'}
+                  {user.email}
                 </p>
               </div>
             </div>
@@ -153,7 +201,7 @@ export function AdminSidebar({ currentPath, onNavigate }: { currentPath: string;
           <div className="p-3 rounded-xs bg-[#141414] border border-[#222] space-y-2.5">
             <div className="flex items-center gap-2 text-xs text-[#888]">
               <Lock className="w-3.5 h-3.5 text-[#D4AF37]" />
-              <span className="font-mono text-[11px] text-[#A0A0A0]">Protected Operations</span>
+              <span className="font-mono text-[11px] text-[#A0A0A0]">Role-Protected Access</span>
             </div>
             <button
               type="button"

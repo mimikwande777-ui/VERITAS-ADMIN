@@ -41,6 +41,7 @@ import {
 } from '@/lib/product-store';
 import { formatZAR } from '@/lib/utils';
 import { ImageIcon } from 'lucide-react';
+import { AdminAccessGuard } from '@/components/admin-access-guard';
 
 export default function ProductsPage() {
   const router = useRouter();
@@ -149,7 +150,8 @@ export default function ProductsPage() {
   const countArchived = products.filter(p => p.status === 'ARCHIVED').length;
 
   return (
-    <div className="space-y-6 pb-20">
+    <AdminAccessGuard requiredPermission="canViewProducts" featureLabel="Product Catalog & Apparel Lines">
+      <div className="space-y-6 pb-20">
       {/* Toast Notification */}
       {notification && (
         <div className="fixed bottom-6 right-6 z-50 bg-[#161616] border border-[#D4AF37] text-white px-4 py-3 rounded shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
@@ -663,5 +665,6 @@ export default function ProductsPage() {
         </div>
       </div>
     </div>
+  </AdminAccessGuard>
   );
 }

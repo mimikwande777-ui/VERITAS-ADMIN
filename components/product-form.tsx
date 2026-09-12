@@ -53,6 +53,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { uploadMediaToSupabaseBucket } from '@/lib/supabase/media';
 import { createSupabaseProduct, updateSupabaseProduct } from '@/lib/supabase/products';
 import { usePWA } from '@/hooks/use-pwa';
+import { useAdminAuth } from '@/lib/auth-context';
 
 // Standard preset options
 const DEFAULT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', 'OS', 'S/M', 'M/L'];
@@ -100,6 +101,8 @@ function getUniqueId(prefix = 'item'): string {
 export default function ProductForm({ initialProduct, mode = 'create' }: ProductFormProps) {
   const router = useRouter();
   const { isOnline } = usePWA();
+  const { hasAccess } = useAdminAuth();
+  const canEditPrice = hasAccess('canEditProductPrice');
 
   // Basic Information
   const [name, setName] = useState(initialProduct?.name || '');
@@ -770,9 +773,15 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                   Section B — Pricing (ZAR)
                 </h2>
               </div>
-              <span className="text-[10px] font-mono text-[#D4AF37] bg-[#1C1708] border border-[#D4AF37]/30 px-2 py-0.5 rounded font-bold">
-                STORE CURRENCY: ZAR (R)
-              </span>
+              {canEditPrice ? (
+                <span className="text-[10px] font-mono text-[#D4AF37] bg-[#1C1708] border border-[#D4AF37]/30 px-2 py-0.5 rounded font-bold">
+                  STORE CURRENCY: ZAR (R)
+                </span>
+              ) : (
+                <span className="text-[10px] font-mono text-amber-400 bg-amber-950/50 border border-amber-800/40 px-2 py-0.5 rounded font-bold">
+                  SUPER ADMIN ONLY (READ-ONLY)
+                </span>
+              )}
             </div>
 
             <div className="space-y-6">
@@ -790,10 +799,11 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                       type="number"
                       step="1"
                       min="0"
+                      disabled={!canEditPrice}
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
                       placeholder="549"
-                      className="w-full bg-[#0A0A0A] border border-[#2B2B2B] pl-9 pr-3 py-3 text-sm font-mono font-bold text-white focus:outline-none focus:border-[#D4AF37]"
+                      className="w-full bg-[#0A0A0A] border border-[#2B2B2B] pl-9 pr-3 py-3 text-sm font-mono font-bold text-white focus:outline-none focus:border-[#D4AF37] disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                   </div>
                   <p className="text-[10px] text-[#666] font-mono mt-1">
@@ -814,10 +824,11 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                       type="number"
                       step="1"
                       min="0"
+                      disabled={!canEditPrice}
                       value={compareAtPrice}
                       onChange={(e) => setCompareAtPrice(e.target.value)}
                       placeholder="699"
-                      className="w-full bg-[#0A0A0A] border border-[#2B2B2B] pl-9 pr-3 py-3 text-sm font-mono text-[#BBB] focus:outline-none focus:border-[#D4AF37]"
+                      className="w-full bg-[#0A0A0A] border border-[#2B2B2B] pl-9 pr-3 py-3 text-sm font-mono text-[#BBB] focus:outline-none focus:border-[#D4AF37] disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                   </div>
                   <p className="text-[10px] text-[#666] font-mono mt-1">
@@ -843,10 +854,11 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                       type="number"
                       step="1"
                       min="0"
+                      disabled={!canEditPrice}
                       value={costPrice}
                       onChange={(e) => setCostPrice(e.target.value)}
                       placeholder="180"
-                      className="w-full bg-[#0A0A0A] border border-[#2B2B2B] pl-9 pr-3 py-3 text-sm font-mono text-[#BBB] focus:outline-none focus:border-[#D4AF37]"
+                      className="w-full bg-[#0A0A0A] border border-[#2B2B2B] pl-9 pr-3 py-3 text-sm font-mono text-[#BBB] focus:outline-none focus:border-[#D4AF37] disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                   </div>
                   <p className="text-[10px] text-amber-500/80 font-mono mt-1">

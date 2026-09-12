@@ -10,8 +10,13 @@ import {
   SupabaseCategoryRow 
 } from '@/lib/supabase/categories';
 import { fetchProductsFromSupabase } from '@/lib/supabase/products';
+import { AdminAccessGuard } from '@/components/admin-access-guard';
+import { useAdminAuth } from '@/lib/auth-context';
+import { ViewOnlyBadge } from '@/components/view-only-badge';
 
 export default function CategoriesPage() {
+  const { hasAccess } = useAdminAuth();
+  const canEdit = hasAccess('canEditCategories');
   const [categories, setCategories] = useState<SupabaseCategoryRow[]>([]);
   const [productCounts, setProductCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -109,7 +114,8 @@ export default function CategoriesPage() {
   };
 
   return (
-    <div className="space-y-6 pb-20">
+    <AdminAccessGuard requiredPermission="canViewCategories" featureLabel="Apparel Categories & Taxonomy">
+      <div className="space-y-6 pb-20">
       {/* Toast Notification */}
       {notification && (
         <div className="fixed bottom-6 right-6 z-50 bg-[#161616] border border-[#D4AF37] text-white px-4 py-3 rounded shadow-2xl flex items-center gap-3 animate-in fade-in">
@@ -121,7 +127,10 @@ export default function CategoriesPage() {
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Categories</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Categories</h1>
+            {!canEdit && <ViewOnlyBadge reason="Creative & Marketing role required to edit" />}
+          </div>
           <p className="text-xs text-[#888] font-mono mt-1">
             APPAREL TAXONOMY & CLASSIFICATIONS
           </p>
@@ -135,13 +144,15 @@ export default function CategoriesPage() {
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#D4AF37]' : ''}`} />
           </button>
-          <button 
-            onClick={() => setIsCreating(true)}
-            className="inline-flex items-center justify-center px-4 py-2 bg-[#D4AF37] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider hover:bg-[#B3932F] transition-colors"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Category
-          </button>
+          {canEdit && (
+            <button 
+              onClick={() => setIsCreating(true)}
+              className="inline-flex items-center justify-center px-4 py-2 bg-[#D4AF37] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider hover:bg-[#B3932F] transition-colors"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Category
+            </button>
+          )}
         </div>
       </div>
 
@@ -291,13 +302,17 @@ export default function CategoriesPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => handleDelete(category)}
-                          className="p-1.5 text-[#666] hover:text-red-400 hover:bg-red-950/30 rounded transition-colors"
-                          title="Delete category"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {canEdit ? (
+                          <button
+                            onClick={() => handleDelete(category)}
+                            className="p-1.5 text-[#666] hover:text-red-400 hover:bg-red-950/30 rounded transition-colors"
+                            title="Delete category"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <span className="text-[10px] font-mono text-[#555]">Read Only</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -308,6 +323,7 @@ export default function CategoriesPage() {
         </div>
       </div>
     </div>
+  </AdminAccessGuard>
   );
 }
 

@@ -6,6 +6,8 @@ import { fetchFullOrdersFromSupabase } from '@/lib/supabase/orders';
 import { OrderRecord } from '@/lib/mock-data';
 import { formatZAR } from '@/lib/utils';
 import { getAdminAuthHeaders, useAdminAuth } from '@/lib/auth-context';
+import { AdminAccessGuard } from '@/components/admin-access-guard';
+import { maskEmail, maskPhone } from '@/lib/customer-privacy';
 
 export default function CustomersPage() {
   const { isAuthenticated, openUnlockModal } = useAdminAuth();
@@ -121,7 +123,8 @@ export default function CustomersPage() {
   );
 
   return (
-    <div className="space-y-6 pb-20">
+    <AdminAccessGuard requiredPermission="canViewCustomers" featureLabel="Customer Accounts & Buyer PII">
+      <div className="space-y-6 pb-20">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Customers</h1>
@@ -345,5 +348,6 @@ export default function CustomersPage() {
         </div>
       </div>
     </div>
+  </AdminAccessGuard>
   );
 }

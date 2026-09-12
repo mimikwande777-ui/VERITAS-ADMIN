@@ -11,8 +11,13 @@ import {
   SupabaseCollectionRow 
 } from '@/lib/supabase/collections';
 import { fetchProductsFromSupabase } from '@/lib/supabase/products';
+import { AdminAccessGuard } from '@/components/admin-access-guard';
+import { useAdminAuth } from '@/lib/auth-context';
+import { ViewOnlyBadge } from '@/components/view-only-badge';
 
 export default function CollectionsPage() {
+  const { hasAccess } = useAdminAuth();
+  const canEdit = hasAccess('canEditCollections');
   const [collections, setCollections] = useState<SupabaseCollectionRow[]>([]);
   const [productCounts, setProductCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -143,7 +148,8 @@ export default function CollectionsPage() {
   };
 
   return (
-    <div className="space-y-6 pb-20">
+    <AdminAccessGuard requiredPermission="canViewCollections" featureLabel="Collections & Drops Management">
+      <div className="space-y-6 pb-20">
       {/* Toast Notification */}
       {notification && (
         <div className="fixed bottom-6 right-6 z-50 bg-[#161616] border border-[#D4AF37] text-white px-4 py-3 rounded shadow-2xl flex items-center gap-3 animate-in fade-in">
@@ -155,7 +161,10 @@ export default function CollectionsPage() {
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Collections & Drops</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Collections & Drops</h1>
+            {!canEdit && <ViewOnlyBadge reason="Creative & Marketing role required to edit" />}
+          </div>
           <p className="text-xs text-[#888] font-mono mt-1">
             CURATED DROPS & PRODUCT GROUPS
           </p>
@@ -169,13 +178,15 @@ export default function CollectionsPage() {
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#D4AF37]' : ''}`} />
           </button>
-          <button 
-            onClick={() => setIsCreating(true)}
-            className="inline-flex items-center justify-center px-4 py-2 bg-[#D4AF37] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider hover:bg-[#B3932F] transition-colors"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create Collection
-          </button>
+          {canEdit && (
+            <button 
+              onClick={() => setIsCreating(true)}
+              className="inline-flex items-center justify-center px-4 py-2 bg-[#D4AF37] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider hover:bg-[#B3932F] transition-colors"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Collection
+            </button>
+          )}
         </div>
       </div>
 
@@ -321,28 +332,40 @@ export default function CollectionsPage() {
                       <td className="px-6 py-4 text-[#888] text-xs max-w-xs truncate">{col.description || '—'}</td>
                       <td className="px-6 py-4 font-medium text-right text-white">{count}</td>
                       <td className="px-6 py-4 text-center">
-                        <button
-                          onClick={() => handleToggleStatus(col)}
-                          disabled={isToggling}
-                          title="Click to toggle status in Supabase"
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] uppercase tracking-wider font-bold rounded-sm border transition-colors disabled:opacity-50 ${
-                            col.is_active 
-                              ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/40 hover:bg-emerald-900/60' 
-                              : 'bg-red-950/40 text-red-400 border-red-800/40 hover:bg-red-900/60'
-                          }`}
-                        >
-                          <Power className={`w-2.5 h-2.5 ${isToggling ? 'animate-spin' : ''}`} />
-                          {isToggling ? 'Updating...' : col.is_active ? 'Active' : 'Inactive'}
-                        </button>
+                        {canEdit ? (
+                          <button
+                            onClick={() => handleToggleStatus(col)}
+                            disabled={isToggling}
+                            title="Click to toggle status in Supabase"
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] uppercase tracking-wider font-bold rounded-sm border transition-colors disabled:opacity-50 ${
+                              col.is_active 
+                                ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/40 hover:bg-emerald-900/60' 
+                                : 'bg-red-950/40 text-red-400 border-red-800/40 hover:bg-red-900/60'
+                            }`}
+                          >
+                            <Power className={`w-2.5 h-2.5 ${isToggling ? 'animate-spin' : ''}`} />
+                            {isToggling ? 'Updating...' : col.is_active ? 'Active' : 'Inactive'}
+                          </button>
+                        ) : (
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] uppercase tracking-wider font-bold rounded-sm border ${
+                            col.is_active ? 'bg-emerald-950/20 text-emerald-500 border-emerald-800/20' : 'bg-red-950/20 text-red-500 border-red-800/20'
+                          }`}>
+                            {col.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => handleDelete(col)}
-                          className="p-1.5 text-[#666] hover:text-red-400 hover:bg-red-950/30 rounded transition-colors"
-                          title="Delete collection"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {canEdit ? (
+                          <button
+                            onClick={() => handleDelete(col)}
+                            className="p-1.5 text-[#666] hover:text-red-400 hover:bg-red-950/30 rounded transition-colors"
+                            title="Delete collection"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <span className="text-[10px] font-mono text-[#555]">Read Only</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -353,6 +376,7 @@ export default function CollectionsPage() {
         </div>
       </div>
     </div>
+  </AdminAccessGuard>
   );
 }
 

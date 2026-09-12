@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient, createServiceRoleSupabaseClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/supabase/require-admin';
+import { normalizeAdminRole } from '@/lib/auth-types';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     // STEP 1 — AUTHENTICATE CREDENTIALS
-    // Use the NORMAL Supabase Auth client only (SUPABASE_URL, SUPABASE_ANON_KEY)
+    // Use the standard Supabase Auth client only (SUPABASE_URL, SUPABASE_ANON_KEY)
     const authClient = createServerSupabaseClient();
     if (!authClient) {
       return NextResponse.json(
@@ -43,7 +44,6 @@ export async function POST(request: NextRequest) {
     const authenticatedUserId = data.user.id;
 
     // STEP 3 — VERIFY admin_users SERVER-SIDE
-    // Membership lookup ONLY using server-only privileged Supabase client
     const privilegedClient = createServiceRoleSupabaseClient();
     if (!privilegedClient) {
       return NextResponse.json(
@@ -54,11 +54,11 @@ export async function POST(request: NextRequest) {
 
     const { data: adminRecord, error: adminErr } = await privilegedClient
       .from('admin_users')
-      .select('user_id, role')
+      .select('user_id, role, is_active')
       .eq('user_id', authenticatedUserId)
       .maybeSingle();
 
-    // STEP 4 — ROLE CHECK
+    // STEP 4 — ROLE & ACTIVE STATUS CHECK
     if (adminErr || !adminRecord) {
       return NextResponse.json(
         { success: false, error: 'Administrator access denied.' },
@@ -66,23 +66,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const allowedRoles = ['super_admin', 'admin', 'manager'];
-    if (!allowedRoles.includes(adminRecord.role)) {
+    // Check is_active
+    if (adminRecord.is_active === false) {
       return NextResponse.json(
-        { success: false, error: 'Administrator access denied.' },
+        { success: false, error: 'Account disabled. Administrator access has been revoked.' },
         { status: 403 }
       );
     }
 
-    // STEP 5 & 6 — CREATE ADMIN SESSION & SESSION CONSISTENCY
+    const canonicalRole = normalizeAdminRole(adminRecord.role);
+    const allowedRoles = ['super_admin', 'operations', 'marketing', 'finance', 'admin', 'manager'];
+    if (!allowedRoles.includes(adminRecord.role) && !allowedRoles.includes(canonicalRole)) {
+      return NextResponse.json(
+        { success: false, error: 'Administrator access denied: unrecognized role.' },
+        { status: 403 }
+      );
+    }
+
+    // STEP 5 & 6 — CREATE ADMIN SESSION & COOKIES
     const user = data.user;
     const session = data.session;
 
     const adminUser = {
       id: authenticatedUserId,
-      name: user.user_metadata?.full_name || email.split('@')[0].toUpperCase(),
+      name: user.user_metadata?.full_name || user.user_metadata?.name || email.split('@')[0].toUpperCase(),
       email: user.email || email,
-      role: adminRecord.role,
+      role: canonicalRole,
+      isActive: true,
       createdAt: user.created_at || new Date().toISOString(),
       lastActive: 'Just now',
     };
@@ -145,6 +155,7 @@ export async function GET(request: NextRequest) {
       id: authCheck.admin.userId,
       email: authCheck.admin.email,
       role: authCheck.admin.role,
+      isActive: authCheck.admin.isActive,
       name: (authCheck.admin.email || 'ADMIN').split('@')[0].toUpperCase(),
     },
   });

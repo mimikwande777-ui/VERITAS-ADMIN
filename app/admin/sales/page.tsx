@@ -29,11 +29,15 @@ import {
 import { OrderRecord } from '@/lib/mock-data';
 import { fetchFullOrdersFromSupabase, AdminOrderFull } from '@/lib/supabase/orders';
 import { formatZAR, formatNumber } from '@/lib/utils';
-import { getAdminAuthHeaders } from '@/lib/auth-context';
+import { getAdminAuthHeaders, useAdminAuth } from '@/lib/auth-context';
+import { AdminAccessGuard } from '@/components/admin-access-guard';
+import { ViewOnlyBadge } from '@/components/view-only-badge';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function SalesPage() {
+  const { hasAccess } = useAdminAuth();
+  const canViewFinancials = hasAccess('canViewFinancialDetails');
   const [timeRange, setTimeRange] = useState<'7D' | '30D' | '90D' | '1Y'>('7D');
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
   const [notification, setNotification] = useState<string | null>(null);
@@ -294,7 +298,8 @@ ${orders.map(o => `${o.id} | Date: ${o.date} | Total: ${formatZAR(o.total)} | Pa
   };
 
   return (
-    <div className="space-y-6 pb-24">
+    <AdminAccessGuard requiredPermission="canViewSales" featureLabel="Sales & Financial Intelligence">
+      <div className="space-y-6 pb-24">
       {/* Toast Notification */}
       {notification && (
         <div className="fixed bottom-6 right-6 z-50 bg-[#161616] border border-[#D4AF37] text-white px-4 py-3 rounded shadow-2xl flex items-center gap-3 animate-in fade-in">
@@ -306,7 +311,10 @@ ${orders.map(o => `${o.id} | Date: ${o.date} | Total: ${formatZAR(o.total)} | Pa
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Sales & Financial Intelligence</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Sales & Financial Intelligence</h1>
+            {!canViewFinancials && <ViewOnlyBadge reason="Bank credentials & payment config restricted to Founder" />}
+          </div>
           <p className="text-xs text-[#888] font-mono mt-1">REAL-TIME REVENUE BREAKDOWNS, AOV, VELOCITY & UNIT PERFORMANCE</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -562,6 +570,7 @@ ${orders.map(o => `${o.id} | Date: ${o.date} | Total: ${formatZAR(o.total)} | Pa
 
       </div>
     </div>
+  </AdminAccessGuard>
   );
 }
 

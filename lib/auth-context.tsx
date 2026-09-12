@@ -4,11 +4,12 @@
  * VERITAS ADMIN AUTHENTICATION & AUTHORIZATION CONTEXT
  * 
  * Supports:
- * - Direct dashboard shell entry without initial login wall
+ * - Direct dashboard shell entry with progressive disclosure
  * - Modal-based "Unlock Admin" flow backed by real Supabase Authentication
  * - Server-side verification via requireAdmin() querying public.admin_users
+ * - Partner RBAC: super_admin, operations, marketing, finance
+ * - Real-time permission checking and account active state enforcement
  * - Session persistence across page reloads and installed PWA
- * - Instant "Lock Admin / Sign Out" capability
  */
 
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
@@ -18,7 +19,9 @@ import {
   CanonicalAdminRole, 
   RolePermissions, 
   CANONICAL_ROLE_PERMISSIONS, 
-  normalizeAdminRole 
+  PermissionString,
+  normalizeAdminRole,
+  hasPermission
 } from './auth-types';
 import { recordAuditLog } from './supabase/audit';
 
@@ -33,24 +36,43 @@ interface AuthContextType {
   closeUnlockModal: () => void;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
-  hasAccess: (permission: keyof RolePermissions) => boolean;
+  hasAccess: (permission: PermissionString | keyof RolePermissions) => boolean;
 }
 
 const EMPTY_PERMISSIONS: RolePermissions = {
-  canManageProducts: false,
-  canPublishProducts: false,
-  canManageInventory: false,
-  canManageOrders: false,
-  canSendToOTC: false,
-  canViewSalesAnalytics: false,
-  canManageCategories: false,
-  canManageCollections: false,
-  canManageMedia: false,
-  canManageSettings: false,
-  canManageDiscounts: false,
+  canViewProducts: false,
+  canCreateProducts: false,
+  canEditProducts: false,
+  canEditProductContent: false,
+  canEditProductPrice: false,
+  canDeleteProducts: false,
+  canViewInventory: false,
+  canEditInventory: false,
+  canViewOrders: false,
+  canUpdateOrderFulfilment: false,
+  canCancelOrders: false,
+  canRefundOrders: false,
+  canViewMedia: false,
+  canUploadMedia: false,
+  canDeleteMedia: false,
+  canViewCollections: false,
+  canEditCollections: false,
+  canViewCategories: false,
+  canEditCategories: false,
+  canViewDiscounts: false,
+  canCreateDiscounts: false,
+  canEditDiscounts: false,
+  canViewSales: false,
+  canExportSales: false,
+  canViewFinancialDetails: false,
   canViewCustomers: false,
+  canViewSensitiveCustomers: false,
+  canViewSettings: false,
+  canManageSettings: false,
+  canManageUsers: false,
+  canManageSecurity: false,
+  canManagePayfastConfig: false,
   canViewActivityLog: false,
-  canManageAdmins: false,
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -81,13 +103,14 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
 
         if (res.ok) {
           const data = await res.json();
-          if (data.authenticated && data.user) {
-            const role = normalizeAdminRole(data.user.role || 'admin');
+          if (data.authenticated && data.user && data.user.isActive !== false) {
+            const role = normalizeAdminRole(data.user.role || 'operations');
             const adminUser: AdminUser = {
               id: data.user.id,
               name: data.user.name || data.user.email?.split('@')[0].toUpperCase(),
               email: data.user.email,
               role,
+              isActive: true,
               createdAt: new Date().toISOString(),
               lastActive: 'Just now',
             };
@@ -98,7 +121,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           if (mounted) setUser(null);
         }
-      } catch (err) {
+      } catch {
         if (mounted) setUser(null);
       } finally {
         if (mounted) setIsLoading(false);
@@ -144,12 +167,13 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.user) {
-        const role = normalizeAdminRole(data.user.role || 'admin');
+        const role = normalizeAdminRole(data.user.role || 'operations');
         const adminUser: AdminUser = {
           id: data.user.id,
           name: data.user.name,
           email: data.user.email,
           role,
+          isActive: true,
           createdAt: data.user.createdAt || new Date().toISOString(),
           lastActive: 'Just now',
         };
@@ -216,12 +240,12 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   const currentRole: CanonicalAdminRole | null = user?.role ? normalizeAdminRole(user.role) : null;
   const permissions: RolePermissions = currentRole ? CANONICAL_ROLE_PERMISSIONS[currentRole] : EMPTY_PERMISSIONS;
 
-  const hasAccess = useCallback((permission: keyof RolePermissions): boolean => {
+  const hasAccess = useCallback((permission: PermissionString | keyof RolePermissions): boolean => {
     if (!user || !currentRole) return false;
-    return !!CANONICAL_ROLE_PERMISSIONS[currentRole]?.[permission];
+    return hasPermission(user, permission as PermissionString);
   }, [user, currentRole]);
 
-  const isAuthenticated = Boolean(user && user.id);
+  const isAuthenticated = Boolean(user && user.id && user.isActive !== false);
 
   const contextValue = useMemo(() => ({
     user,
@@ -269,5 +293,3 @@ export async function getAdminAuthHeaders(): Promise<Record<string, string>> {
   }
   return {};
 }
-
-

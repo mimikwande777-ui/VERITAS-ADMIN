@@ -33,9 +33,12 @@ import {
 } from '@/lib/supabase/inventory';
 import { usePWA } from '@/hooks/use-pwa';
 import { useAdminAuth } from '@/lib/auth-context';
+import { AdminAccessGuard } from '@/components/admin-access-guard';
+import { ViewOnlyBadge } from '@/components/view-only-badge';
 
 export default function InventoryPage() {
-  const { isAuthenticated, openUnlockModal } = useAdminAuth();
+  const { isAuthenticated, openUnlockModal, hasAccess } = useAdminAuth();
+  const canEditInventory = hasAccess('canEditInventory');
   const { isOnline } = usePWA();
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -409,7 +412,8 @@ export default function InventoryPage() {
   const totalUnits = items.reduce((acc, i) => acc + i.quantity, 0);
 
   return (
-    <div className="space-y-6 pb-20">
+    <AdminAccessGuard requiredPermission="canViewInventory" featureLabel="Variant Inventory & Stock Operations">
+      <div className="space-y-6 pb-20">
       {/* Toast Notification */}
       {notification && (
         <div className={`fixed bottom-6 right-6 z-50 border px-4 py-3 rounded shadow-2xl flex items-center gap-3 animate-in fade-in ${
@@ -429,7 +433,10 @@ export default function InventoryPage() {
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-widest text-white">Variant Inventory</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-widest text-white">Variant Inventory</h1>
+            {!canEditInventory && <ViewOnlyBadge reason="Operations & Production role required to edit stock" />}
+          </div>
           <p className="text-[11px] sm:text-xs text-[#888] font-mono mt-0.5 sm:mt-1">
             REAL-TIME STOCK LEVELS & DISPATCH
           </p>
@@ -454,15 +461,17 @@ export default function InventoryPage() {
             <Download className="w-3.5 h-3.5 text-[#888]" />
             Export CSV
           </button>
-          <button 
-            type="button"
-            onClick={() => setIsAddingVariant(true)}
-            disabled={products.length === 0}
-            className="min-h-[44px] flex-1 sm:flex-initial px-3 sm:px-4 py-2 bg-[#D4AF37] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider hover:bg-[#B3932F] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 active:scale-95"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add Variant
-          </button>
+          {canEditInventory && (
+            <button 
+              type="button"
+              onClick={() => setIsAddingVariant(true)}
+              disabled={products.length === 0}
+              className="min-h-[44px] flex-1 sm:flex-initial px-3 sm:px-4 py-2 bg-[#D4AF37] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider hover:bg-[#B3932F] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Variant
+            </button>
+          )}
         </div>
       </div>
 
@@ -945,5 +954,6 @@ export default function InventoryPage() {
         </div>
       )}
     </div>
+  </AdminAccessGuard>
   );
 }

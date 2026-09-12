@@ -26,6 +26,7 @@ import {
   AdminMediaAsset 
 } from '@/lib/supabase/media';
 import { fetchProductsFromSupabase, SupabaseProductWithDetails } from '@/lib/supabase/products';
+import { AdminAccessGuard } from '@/components/admin-access-guard';
 
 export default function MediaLibraryPage() {
   const [mediaList, setMediaList] = useState<AdminMediaAsset[]>([]);
@@ -180,7 +181,8 @@ export default function MediaLibraryPage() {
   });
 
   return (
-    <div className="space-y-6 pb-20">
+    <AdminAccessGuard requiredPermission="canViewMedia" featureLabel="Media Library & Studio Visual Assets">
+      <div className="space-y-6 pb-20">
       {/* Toast Notification */}
       {notification && (
         <div className={`fixed bottom-6 right-6 z-50 border px-4 py-3 rounded shadow-2xl flex items-center gap-3 animate-in fade-in ${
@@ -643,6 +645,7 @@ export default function MediaLibraryPage() {
         </div>
       )}
     </div>
+  </AdminAccessGuard>
   );
 }
 

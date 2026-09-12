@@ -44,9 +44,12 @@ import {
 } from '@/lib/supabase/types';
 import { formatZAR, formatShippingZAR } from '@/lib/utils';
 import { getAdminAuthHeaders, useAdminAuth } from '@/lib/auth-context';
+import { AdminAccessGuard } from '@/components/admin-access-guard';
+import { ViewOnlyBadge } from '@/components/view-only-badge';
 
 export default function OrdersPage() {
-  const { isAuthenticated, openUnlockModal } = useAdminAuth();
+  const { isAuthenticated, openUnlockModal, hasAccess } = useAdminAuth();
+  const canUpdateFulfilment = hasAccess('canUpdateOrderFulfilment');
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [fullOrders, setFullOrders] = useState<AdminOrderFull[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -336,7 +339,8 @@ INTERNAL TRACK:   ${order.trackingNumber}
   const hasActiveFilters = Boolean(searchTerm || statusFilter !== 'all' || dateRangePreset !== 'all' || startDate || endDate);
 
   return (
-    <div className="space-y-6 pb-24">
+    <AdminAccessGuard requiredPermission="canViewOrders" featureLabel="Orders & Fulfilment Operations">
+      <div className="space-y-6 pb-24">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-[#161616] border border-[#D4AF37] text-white px-4 py-3 rounded-xs shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
@@ -353,6 +357,7 @@ INTERNAL TRACK:   ${order.trackingNumber}
             <span className="bg-[#141414] text-[#D4AF37] border border-[#D4AF37]/30 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
               LIVE
             </span>
+            {!canUpdateFulfilment && <ViewOnlyBadge reason="Operations & Production role required to update fulfilment" />}
           </div>
           <p className="text-[11px] sm:text-xs text-[#888] font-mono mt-0.5 sm:mt-1">
             Over-the-Counter (OTC) dispatch management, custom garment specs & automated waybills.
@@ -961,5 +966,6 @@ INTERNAL TRACK:   ${order.trackingNumber}
         </div>
       )}
     </div>
+  </AdminAccessGuard>
   );
 }

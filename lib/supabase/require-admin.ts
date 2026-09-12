@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient, createServiceRoleSupabaseClient } from './server';
+import { 
+  CanonicalAdminRole, 
+  PermissionString, 
+  hasPermission, 
+  normalizeAdminRole, 
+  CANONICAL_ROLE_PERMISSIONS 
+} from '../auth-types';
 
 export interface VerifiedAdmin {
   userId: string;
   email?: string;
-  role: 'super_admin' | 'admin' | 'manager';
+  role: CanonicalAdminRole;
+  isActive: boolean;
 }
 
 export type RequireAdminResult = 
@@ -12,18 +20,22 @@ export type RequireAdminResult =
   | { authorized: false; errorResponse: NextResponse; admin?: never };
 
 /**
- * Authoritative server-side admin verification.
+ * Authoritative server-side admin verification and RBAC engine.
  * 
  * Enforces:
  * 1. Must have valid Supabase JWT Bearer token in request headers or auth cookie.
  * 2. Token must be verified cryptographically by Supabase Auth (serverClient.auth.getUser(token)).
  * 3. User UUID from Supabase Auth must match a row in public.admin_users.
- * 4. User role in public.admin_users must be one of: 'super_admin' | 'admin' | 'manager'.
- * 
- * ZERO authorization power is granted to arbitrary cookies (e.g. veritas_admin_session=active),
- * client-sent roles, localStorage, or hardcoded email lists.
+ * 4. User account must be active (is_active === true).
+ * 5. Optional role or permission requirement check.
  */
-export async function requireAdmin(request: NextRequest): Promise<RequireAdminResult> {
+export async function requireAdmin(
+  request: NextRequest,
+  options?: {
+    requiredRole?: CanonicalAdminRole | CanonicalAdminRole[];
+    requiredPermission?: PermissionString;
+  }
+): Promise<RequireAdminResult> {
   // 1. Extract Bearer token
   const authHeader = request.headers.get('authorization');
   let token: string | null = null;
@@ -95,7 +107,7 @@ export async function requireAdmin(request: NextRequest): Promise<RequireAdminRe
     };
   }
 
-  // 3. Query public.admin_users to verify the authenticated UUID exists with an authorized role
+  // 3. Query public.admin_users to verify the authenticated UUID exists with an authorized role and is active
   const serviceClient = createServiceRoleSupabaseClient();
   if (!serviceClient) {
     return {
@@ -109,7 +121,7 @@ export async function requireAdmin(request: NextRequest): Promise<RequireAdminRe
 
   const { data: adminRecord, error: adminQueryError } = await serviceClient
     .from('admin_users')
-    .select('user_id, role')
+    .select('user_id, role, is_active')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -123,15 +135,53 @@ export async function requireAdmin(request: NextRequest): Promise<RequireAdminRe
     };
   }
 
-  const allowedRoles = ['super_admin', 'admin', 'manager'];
-  if (!allowedRoles.includes(adminRecord.role)) {
+  // 4. ACTIVE ACCOUNT CHECK
+  // If is_active is explicitly false, reject immediately
+  const isActive = adminRecord.is_active !== false;
+  if (!isActive) {
     return {
       authorized: false,
       errorResponse: NextResponse.json(
-        { success: false, error: 'Forbidden: Insufficient administrative role.' },
+        { success: false, error: 'Forbidden: Administrator account is disabled. Access revoked.' },
         { status: 403 }
       ),
     };
+  }
+
+  const canonicalRole = normalizeAdminRole(adminRecord.role);
+
+  // 5. REQUIRED ROLE CHECK (IF SPECIFIED)
+  if (options?.requiredRole) {
+    const requiredRoles = Array.isArray(options.requiredRole) ? options.requiredRole : [options.requiredRole];
+    if (!requiredRoles.includes(canonicalRole) && canonicalRole !== 'super_admin') {
+      return {
+        authorized: false,
+        errorResponse: NextResponse.json(
+          { 
+            success: false, 
+            error: `Forbidden: Requires role [${requiredRoles.join(', ')}]. Current role is '${canonicalRole}'.` 
+          },
+          { status: 403 }
+        ),
+      };
+    }
+  }
+
+  // 6. REQUIRED PERMISSION CHECK (IF SPECIFIED)
+  if (options?.requiredPermission) {
+    const isGranted = hasPermission(canonicalRole, options.requiredPermission);
+    if (!isGranted) {
+      return {
+        authorized: false,
+        errorResponse: NextResponse.json(
+          { 
+            success: false, 
+            error: `Forbidden: Permission '${options.requiredPermission}' is not granted to role '${canonicalRole}'.` 
+          },
+          { status: 403 }
+        ),
+      };
+    }
   }
 
   return {
@@ -139,7 +189,25 @@ export async function requireAdmin(request: NextRequest): Promise<RequireAdminRe
     admin: {
       userId: user.id,
       email: user.email,
-      role: adminRecord.role as 'super_admin' | 'admin' | 'manager',
+      role: canonicalRole,
+      isActive: true,
     },
   };
+}
+
+/**
+ * Server-side helper to require a specific permission
+ */
+export async function requirePermission(request: NextRequest, permission: PermissionString): Promise<RequireAdminResult> {
+  return requireAdmin(request, { requiredPermission: permission });
+}
+
+/**
+ * Server-side helper to require a specific role (or list of roles)
+ */
+export async function requireRole(
+  request: NextRequest, 
+  requiredRole: CanonicalAdminRole | CanonicalAdminRole[]
+): Promise<RequireAdminResult> {
+  return requireAdmin(request, { requiredRole });
 }

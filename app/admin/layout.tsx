@@ -163,7 +163,7 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <div className="flex items-center gap-1.5 sm:gap-2 bg-[#141414] border border-[#262626] px-2 sm:px-2.5 py-1 rounded-xs">
                   <div className="w-6 h-6 rounded-xs bg-[#222] border border-[#333] flex items-center justify-center text-[10px] font-bold text-[#D4AF37] shrink-0">
-                    {role === 'super_admin' ? 'SA' : role === 'admin' ? 'AD' : 'MG'}
+                    {role === 'super_admin' ? 'SA' : role === 'operations' ? 'OP' : role === 'marketing' ? 'MK' : role === 'finance' ? 'FN' : 'AD'}
                   </div>
                   <div className="hidden lg:block text-left">
                     <div className="text-[11px] font-bold text-white font-mono leading-tight truncate max-w-[130px]">

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Save, Check, Sparkles, Shield, Database, Globe, RefreshCw, AlertCircle } from 'lucide-react';
 import { PWAInstallButton } from '@/components/pwa-install-button';
+import { AdminAccessGuard } from '@/components/admin-access-guard';
 
 export default function SettingsPage() {
   const [brandName, setBrandName] = useState('VERITAS');
@@ -71,7 +72,8 @@ export default function SettingsPage() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://cdzvmnixlhjjrpyoaemg.supabase.co';
 
   return (
-    <div className="space-y-6 pb-20">
+    <AdminAccessGuard superAdminOnly={true} featureLabel="Global Settings & Integrations">
+      <div className="space-y-6 pb-20">
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 bg-[#161616] border border-[#D4AF37] text-white px-4 py-3 rounded shadow-2xl flex items-center gap-3 animate-in fade-in">
           <Sparkles className="w-4 h-4 text-[#D4AF37]" />
@@ -282,6 +284,7 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+  </AdminAccessGuard>
   );
 }
 

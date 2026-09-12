@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/supabase/require-admin';
 import { createServiceRoleSupabaseClient } from '@/lib/supabase/server';
 import { fetchFullOrdersFromSupabase } from '@/lib/supabase/orders';
+import { hasPermission } from '@/lib/auth-types';
+import { sanitizeCustomerForRole } from '@/lib/customer-privacy';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
-  const authCheck = await requireAdmin(request);
+  const authCheck = await requireAdmin(request, { requiredPermission: 'canViewCustomers' });
   if (!authCheck.authorized) {
     return authCheck.errorResponse;
   }
@@ -60,12 +62,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const customers = Array.from(customerMap.values());
+    const canViewSensitive = hasPermission(authCheck.admin.role, 'canViewSensitiveCustomers');
+    const rawCustomers = Array.from(customerMap.values());
+    const sanitizedCustomers = rawCustomers.map(c => sanitizeCustomerForRole(c, canViewSensitive));
 
     return NextResponse.json({
       success: true,
-      customers,
-      count: customers.length,
+      customers: sanitizedCustomers,
+      count: sanitizedCustomers.length,
     });
   } catch (err: any) {
     return NextResponse.json(
