@@ -57,8 +57,11 @@ export default function AdminUsersPage() {
   const [addSuccessMsg, setAddSuccessMsg] = useState<string | null>(null);
 
   // Change Role Form State
+  const [originalRole, setOriginalRole] = useState<CanonicalAdminRole>('operations');
   const [targetRole, setTargetRole] = useState<CanonicalAdminRole>('operations');
   const [roleLoading, setRoleLoading] = useState(false);
+  const [roleError, setRoleError] = useState<string | null>(null);
+  const [roleSuccessMsg, setRoleSuccessMsg] = useState<string | null>(null);
 
   const fetchPartners = useCallback(async (showLoader = false) => {
     if (showLoader) setLoading(true);
@@ -217,17 +220,25 @@ export default function AdminUsersPage() {
     e.preventDefault();
     if (!selectedPartner) return;
 
+    if (targetRole === originalRole) {
+      // TEST A: operations -> operations => no network request
+      return;
+    }
+
     if (selectedPartner.isSelf || selectedPartner.role === 'super_admin') {
-      alert('Self-modification prevented: Founder / Super Admin role cannot be modified.');
+      setRoleError('Self-modification prevented: Founder / Super Admin role cannot be modified.');
       return;
     }
 
     if (targetRole === 'super_admin') {
-      alert('Super Admin role assignment via role change is strictly restricted.');
+      setRoleError('Super Admin role assignment via role change is strictly restricted.');
       return;
     }
 
     setRoleLoading(true);
+    setRoleError(null);
+    setRoleSuccessMsg(null);
+
     try {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
@@ -240,7 +251,7 @@ export default function AdminUsersPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to update role.');
+        throw new Error(data.message || data.error || 'Could not update partner role.');
       }
 
       // Audit log
@@ -253,11 +264,20 @@ export default function AdminUsersPage() {
         actorRole: currentAdmin?.role,
       });
 
-      setIsChangeRoleOpen(false);
-      setSelectedPartner(null);
-      void fetchPartners();
+      const roleLabel = targetRole === 'operations' ? 'Operations & Production' : 'Creative & Marketing';
+
+      // Refresh team roster & update badge immediately
+      await fetchPartners();
+
+      setRoleSuccessMsg(`Partner role updated to ${roleLabel}.`);
+
+      setTimeout(() => {
+        setIsChangeRoleOpen(false);
+        setSelectedPartner(null);
+        setRoleSuccessMsg(null);
+      }, 900);
     } catch (err: any) {
-      alert(`Error updating role: ${err?.message}`);
+      setRoleError(err?.message || 'Could not update partner role.');
     } finally {
       setRoleLoading(false);
     }
@@ -514,7 +534,11 @@ export default function AdminUsersPage() {
                               type="button"
                               onClick={() => {
                                 setSelectedPartner(partner);
-                                setTargetRole(partner.role === 'super_admin' ? 'operations' : partner.role);
+                                const initRole = partner.role === 'super_admin' ? 'operations' : partner.role;
+                                setOriginalRole(initRole);
+                                setTargetRole(initRole);
+                                setRoleError(null);
+                                setRoleSuccessMsg(null);
                                 setIsChangeRoleOpen(true);
                               }}
                               className="px-2.5 py-1 bg-[#1A1A1A] hover:bg-[#262626] border border-[#333] text-white hover:text-[#D4AF37] rounded-xs text-[11px] transition-colors cursor-pointer"
@@ -700,6 +724,20 @@ export default function AdminUsersPage() {
                 <div className="text-[11px] text-[#777]">Current Role: <span className="text-[#D4AF37] uppercase">{selectedPartner.role}</span></div>
               </div>
 
+              {roleError && (
+                <div className="p-3 bg-red-950/40 border border-red-800/60 rounded-xs text-xs text-red-300 font-mono flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <span>{roleError}</span>
+                </div>
+              )}
+
+              {roleSuccessMsg && (
+                <div className="p-3 bg-emerald-950/40 border border-emerald-800/60 rounded-xs text-xs text-emerald-300 font-mono flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span>{roleSuccessMsg}</span>
+                </div>
+              )}
+
               <form onSubmit={handleChangeRoleSubmit} className="space-y-4">
                 <div>
                   <label className="text-[11px] font-mono uppercase tracking-wider text-[#A0A0A0] block mb-1">
@@ -707,7 +745,10 @@ export default function AdminUsersPage() {
                   </label>
                   <select
                     value={targetRole}
-                    onChange={(e) => setTargetRole(e.target.value as CanonicalAdminRole)}
+                    onChange={(e) => {
+                      setTargetRole(e.target.value as CanonicalAdminRole);
+                      setRoleError(null);
+                    }}
                     className="w-full bg-[#161616] border border-[#2B2B2B] text-white px-3 py-2 text-xs font-mono rounded-none focus:outline-hidden focus:border-[#D4AF37]"
                   >
                     <option value="operations">Operations & Production (Inventory, Orders, Fulfilment, Media)</option>
@@ -726,14 +767,16 @@ export default function AdminUsersPage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={roleLoading}
-                    className="px-5 py-2 bg-[#D4AF37] hover:bg-[#B3932F] text-black font-bold text-xs font-mono uppercase tracking-wider rounded-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    disabled={roleLoading || targetRole === originalRole}
+                    className="px-5 py-2 bg-[#D4AF37] hover:bg-[#B3932F] text-black font-bold text-xs font-mono uppercase tracking-wider rounded-xs flex items-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {roleLoading ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         <span>Updating Role...</span>
                       </>
+                    ) : targetRole === originalRole ? (
+                      <span>NO CHANGES</span>
                     ) : (
                       <span>Save Role</span>
                     )}

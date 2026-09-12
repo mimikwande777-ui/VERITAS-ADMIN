@@ -238,86 +238,185 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  // SUPER ADMIN ONLY GATE
+  const startTime = Date.now();
+  console.log('[ADMIN_ROLE_CHANGE_START] PATCH /api/admin/users request received');
+
+  // 1. SUPER ADMIN ONLY GATE
   const authCheck = await requireRole(request, 'super_admin');
+  const authDuration = Date.now() - startTime;
+
   if (!authCheck.authorized) {
+    console.log(`[ADMIN_ROLE_AUTHORIZED_FAIL] Authorization failed in ${authDuration}ms`);
     return authCheck.errorResponse;
+  }
+
+  console.log(`[ADMIN_ROLE_AUTHORIZED] Requester [${authCheck.admin.userId}] verified super_admin in ${authDuration}ms`);
+  if (authDuration > 2000) {
+    console.warn(`[ADMIN_ROLE_CHANGE_STAGE_SLOW] Auth verification stage took ${authDuration}ms`);
   }
 
   try {
     const body = await request.json().catch(() => ({}));
-    const { userId, role: newRoleInput, isActive } = body;
+    const { userId, role: rawRoleInput, isActive } = body;
 
-    if (!userId) {
+    // Validate target user UUID
+    if (!userId || typeof userId !== 'string' || !userId.trim()) {
       return NextResponse.json(
-        { success: false, error: 'Target userId is required.' },
+        { 
+          success: false, 
+          code: 'INVALID_TARGET_USER', 
+          message: 'Target partner userId is required.' 
+        },
         { status: 400 }
       );
     }
 
+    const targetUserId = userId.trim();
+
     // SELF PROTECTION: Super admin cannot disable or change role of own account
-    if (userId === authCheck.admin.userId) {
-      if (isActive === false || newRoleInput !== undefined) {
+    if (targetUserId === authCheck.admin.userId) {
+      if (isActive === false || rawRoleInput !== undefined) {
         return NextResponse.json(
-          { success: false, error: 'Self-modification prevented: Founder / Super Admin cannot disable or modify their own account.' },
+          { 
+            success: false, 
+            code: 'SELF_MODIFICATION_BLOCKED', 
+            message: 'Self-modification prevented: Founder / Super Admin cannot modify or disable their own account.' 
+          },
           { status: 400 }
         );
       }
     }
 
-    // SERVER-SIDE ROLE RESTRICTION: Reject super_admin assignment
-    if (newRoleInput !== undefined) {
-      const normalizedRole = normalizeAdminRole(newRoleInput);
-      if (normalizedRole === 'super_admin' || newRoleInput === 'super_admin') {
+    // SERVER-SIDE ROLE RESTRICTION: Check requested role
+    let targetRole: string | undefined = undefined;
+    if (rawRoleInput !== undefined && rawRoleInput !== null) {
+      const cleanRole = String(rawRoleInput).trim().toLowerCase();
+      // Allowed roles for partner role update: strictly 'operations' or 'marketing'
+      const ALLOWED_PARTNER_ROLES = ['operations', 'marketing'];
+
+      if (!ALLOWED_PARTNER_ROLES.includes(cleanRole)) {
         return NextResponse.json(
-          { success: false, error: 'Forbidden: Super Admin role assignment via role change is restricted.' },
+          { 
+            success: false, 
+            code: 'FORBIDDEN_ROLE_ASSIGNMENT', 
+            message: `Forbidden: Assigning role '${cleanRole}' is prohibited. Only 'operations' or 'marketing' roles are allowed for partners.` 
+          },
           { status: 403 }
         );
       }
+
+      targetRole = cleanRole;
     }
 
     const serviceClient = createServiceRoleSupabaseClient();
     if (!serviceClient) {
       return NextResponse.json(
-        { success: false, error: 'Server database client unavailable.' },
+        { 
+          success: false, 
+          code: 'DATABASE_CLIENT_ERROR', 
+          message: 'Server database client unavailable.' 
+        },
         { status: 500 }
       );
     }
+
+    // Check existing public.admin_users record
+    const { data: existingRecord, error: fetchError } = await serviceClient
+      .from('admin_users')
+      .select('id, user_id, role, is_active')
+      .eq('user_id', targetUserId)
+      .maybeSingle();
+
+    if (fetchError || !existingRecord) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          code: 'PARTNER_NOT_FOUND', 
+          message: fetchError?.message || 'Specified partner user record was not found in admin_users.' 
+        },
+        { status: 404 }
+      );
+    }
+
+    // NO-CHANGE PROTECTION
+    const roleIsUnchanged = targetRole === undefined || targetRole === existingRecord.role.toLowerCase().trim();
+    const activeIsUnchanged = isActive === undefined || Boolean(isActive) === existingRecord.is_active;
+
+    if (roleIsUnchanged && activeIsUnchanged) {
+      const durationMs = Date.now() - startTime;
+      console.log(`[ADMIN_ROLE_CHANGE_NO_OP] Role/status unchanged for partner [${targetUserId}], returning early in ${durationMs}ms`);
+      return NextResponse.json({
+        success: true,
+        unchanged: true,
+        role: existingRecord.role,
+        message: 'No changes detected. Record remains untouched.',
+        durationMs,
+      });
+    }
+
+    // DIRECT DATABASE UPDATE (NO AUTH API CALLS, NO EMAIL INVITES)
+    console.log(`[ADMIN_ROLE_DB_UPDATE_START] Executing UPDATE on public.admin_users for userId: ${targetUserId}`);
+    const dbUpdateStart = Date.now();
 
     const updatePayload: Record<string, any> = {
       updated_at: new Date().toISOString(),
     };
 
-    if (newRoleInput !== undefined) {
-      updatePayload.role = normalizeAdminRole(newRoleInput);
+    if (targetRole !== undefined) {
+      updatePayload.role = targetRole;
     }
 
     if (isActive !== undefined) {
       updatePayload.is_active = Boolean(isActive);
     }
 
-    const { data: updated, error: updateError } = await serviceClient
+    const { data: updatedRecord, error: updateError } = await serviceClient
       .from('admin_users')
       .update(updatePayload)
-      .eq('user_id', userId)
-      .select()
-      .maybeSingle();
+      .eq('user_id', targetUserId)
+      .select('id, user_id, role, is_active, created_at, updated_at')
+      .single();
+
+    const dbUpdateDuration = Date.now() - dbUpdateStart;
 
     if (updateError) {
+      console.error(`[ADMIN_ROLE_DB_UPDATE_FAILED] Failed after ${dbUpdateDuration}ms:`, updateError.message);
       return NextResponse.json(
-        { success: false, error: updateError.message },
+        { 
+          success: false, 
+          code: 'ROLE_UPDATE_FAILED', 
+          message: `Could not update partner role: ${updateError.message}` 
+        },
         { status: 500 }
       );
     }
 
+    console.log(`[ADMIN_ROLE_DB_UPDATE_SUCCESS] DB update completed in ${dbUpdateDuration}ms`);
+    if (dbUpdateDuration > 2000) {
+      console.warn(`[ADMIN_ROLE_CHANGE_STAGE_SLOW] DB update stage took ${dbUpdateDuration}ms`);
+    }
+
+    const totalDurationMs = Date.now() - startTime;
+    console.log(`[ADMIN_ROLE_CHANGE_COMPLETE] Total role change request finished in ${totalDurationMs}ms`);
+    if (totalDurationMs > 2000) {
+      console.warn(`[ADMIN_ROLE_CHANGE_STAGE_SLOW] Total request processing took ${totalDurationMs}ms`);
+    }
+
     return NextResponse.json({
       success: true,
-      message: 'Partner account updated successfully.',
-      partner: updated,
+      message: 'Partner role updated successfully.',
+      partner: updatedRecord,
+      durationMs: totalDurationMs,
     });
   } catch (err: any) {
+    const totalDurationMs = Date.now() - startTime;
+    console.error(`[ADMIN_ROLE_CHANGE_ERROR] Unhandled exception in ${totalDurationMs}ms:`, err?.message);
     return NextResponse.json(
-      { success: false, error: err?.message || 'Failed to update partner account.' },
+      { 
+        success: false, 
+        code: 'ROLE_UPDATE_FAILED', 
+        message: err?.message || 'Could not update partner role.' 
+      },
       { status: 500 }
     );
   }
