@@ -29,10 +29,12 @@ interface PartnerUser {
   name: string;
   role: CanonicalAdminRole;
   isActive: boolean;
-  status: 'ACTIVE' | 'INVITED' | 'DISABLED';
+  status: 'ACTIVE' | 'INVITED' | 'LEGACY_NOT_SENT' | 'DISABLED';
   createdAt: string;
   updatedAt?: string;
   lastSignIn: string | null;
+  confirmedAt?: string | null;
+  invitedAt?: string | null;
   isSelf: boolean;
 }
 
@@ -62,6 +64,10 @@ export default function AdminUsersPage() {
   const [roleLoading, setRoleLoading] = useState(false);
   const [roleError, setRoleError] = useState<string | null>(null);
   const [roleSuccessMsg, setRoleSuccessMsg] = useState<string | null>(null);
+
+  // Reissue Invite State
+  const [reissueLoadingId, setReissueLoadingId] = useState<string | null>(null);
+  const [reissueFeedback, setReissueFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const fetchPartners = useCallback(async (showLoader = false) => {
     if (showLoader) setLoading(true);
@@ -212,6 +218,68 @@ export default function AdminUsersPage() {
       void fetchPartners();
     } catch (err: any) {
       alert(`Error updating account status: ${err?.message}`);
+    }
+  };
+
+  // Handle Reissue Invite
+  const handleReissueInvite = async (partner: PartnerUser) => {
+    if (partner.isSelf || partner.role === 'super_admin') {
+      alert('Self-modification prevented: Founder / Super Admin account cannot be reissued.');
+      return;
+    }
+
+    if (!['operations', 'marketing'].includes(partner.role)) {
+      alert('Reissue invite is restricted to Operations and Marketing partners.');
+      return;
+    }
+
+    if (!window.confirm(`Reissue invitation email to ${partner.email}? This will delete the stale Auth record and generate a new invitation.`)) {
+      return;
+    }
+
+    setReissueLoadingId(partner.userId);
+    setReissueFeedback(null);
+
+    try {
+      const res = await fetch('/api/admin/users/reissue-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: partner.userId,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success === true && data.inviteIssued === true) {
+        setReissueFeedback({
+          type: 'success',
+          message: 'INVITATION SENT',
+        });
+
+        void recordAuditLog({
+          action: 'auth.login' as any,
+          actionLabel: `Super Admin reissued invitation for ${partner.email}`,
+          targetType: 'auth',
+          targetId: data.newUserId || partner.userId,
+          actorEmail: currentAdmin?.email,
+          actorRole: currentAdmin?.role,
+        });
+
+        await fetchPartners();
+      } else {
+        setReissueFeedback({
+          type: 'error',
+          message: data.error || 'Invitation could not be reissued. Check server logs.',
+        });
+      }
+    } catch (err: any) {
+      setReissueFeedback({
+        type: 'error',
+        message: err?.message || 'Invitation could not be reissued. Check server logs.',
+      });
+    } finally {
+      setReissueLoadingId(null);
     }
   };
 
@@ -420,6 +488,31 @@ export default function AdminUsersPage() {
           </div>
         </div>
 
+        {/* Reissue Feedback Banner */}
+        {reissueFeedback && (
+          <div className={`p-3.5 rounded-xs text-xs font-mono flex items-center justify-between border ${
+            reissueFeedback.type === 'success'
+              ? 'bg-emerald-950/50 border-emerald-800 text-emerald-300'
+              : 'bg-red-950/50 border-red-800 text-red-300'
+          }`}>
+            <div className="flex items-center gap-2">
+              {reissueFeedback.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+              )}
+              <span>{reissueFeedback.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReissueFeedback(null)}
+              className="text-current hover:opacity-80 p-0.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Filter / Search Bar */}
         <div className="flex items-center justify-between gap-3 bg-[#0F0F0F] p-3 rounded-xs border border-[#1F1F1F]">
           <div className="relative flex-1 max-w-sm">
@@ -502,7 +595,13 @@ export default function AdminUsersPage() {
                         {partner.status === 'INVITED' && (
                           <span className="inline-flex items-center gap-1 text-amber-400 text-[11px] font-bold bg-amber-950/40 border border-amber-800/40 px-2 py-0.5 rounded-xs">
                             <Mail className="w-3.5 h-3.5 shrink-0" />
-                            INVITED
+                            INVITED / PENDING SETUP
+                          </span>
+                        )}
+                        {partner.status === 'LEGACY_NOT_SENT' && (
+                          <span className="inline-flex items-center gap-1 text-amber-500 text-[11px] font-bold bg-amber-950/60 border border-amber-700/60 px-2 py-0.5 rounded-xs">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                            LEGACY INVITE NOT SENT
                           </span>
                         )}
                         {partner.status === 'DISABLED' && (
@@ -530,6 +629,28 @@ export default function AdminUsersPage() {
                           </span>
                         ) : (
                           <div className="flex items-center justify-end gap-2">
+                            {partner.status === 'LEGACY_NOT_SENT' && ['operations', 'marketing'].includes(partner.role) && (
+                              <button
+                                type="button"
+                                onClick={() => void handleReissueInvite(partner)}
+                                disabled={reissueLoadingId === partner.userId}
+                                className="px-2.5 py-1 bg-amber-950/60 hover:bg-amber-900/80 border border-amber-600/60 text-amber-300 hover:text-white rounded-xs text-[11px] font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 shrink-0"
+                                title="Delete stale unconfirmed Auth record & reissue fresh invite"
+                              >
+                                {reissueLoadingId === partner.userId ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin text-amber-400" />
+                                    <span>REISSUING...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Mail className="w-3 h-3 text-amber-400" />
+                                    <span>REISSUE INVITE</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               onClick={() => {

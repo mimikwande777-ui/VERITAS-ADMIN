@@ -59,10 +59,12 @@ export async function GET(request: NextRequest) {
       const role = normalizeAdminRole(record.role);
       const isActive = record.is_active !== false;
 
-      let status: 'ACTIVE' | 'INVITED' | 'DISABLED' = 'ACTIVE';
+      let status: 'ACTIVE' | 'INVITED' | 'LEGACY_NOT_SENT' | 'DISABLED' = 'ACTIVE';
       if (!isActive) {
         status = 'DISABLED';
-      } else if (authInfo?.invitedAt && !authInfo?.lastSignIn && !authInfo?.confirmedAt) {
+      } else if (!authInfo?.confirmedAt && !authInfo?.invitedAt) {
+        status = 'LEGACY_NOT_SENT';
+      } else if (!authInfo?.confirmedAt && authInfo?.invitedAt) {
         status = 'INVITED';
       } else {
         status = 'ACTIVE';
@@ -79,6 +81,8 @@ export async function GET(request: NextRequest) {
         createdAt: record.created_at,
         updatedAt: record.updated_at,
         lastSignIn: authInfo?.lastSignIn || null,
+        confirmedAt: authInfo?.confirmedAt || null,
+        invitedAt: authInfo?.invitedAt || null,
         isSelf: record.user_id === authCheck.admin.userId,
       };
     });
