@@ -1,8 +1,25 @@
 import { createBrowserClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isSupabaseConfigured } from './config';
 
 let clientInstance: SupabaseClient | null = null;
+
+/**
+ * Checks whether the public client Supabase environment variables are configured.
+ */
+export function isPublicSupabaseConfigured(): boolean {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  return Boolean(
+    url && 
+    key && 
+    url.length > 0 && 
+    key.length > 0 && 
+    url.startsWith('https://') && 
+    !url.includes('YOUR_SUPABASE')
+  );
+}
+
+export const isSupabaseConfigured = isPublicSupabaseConfigured;
 
 /**
  * Creates or retrieves the singleton Supabase browser client.
@@ -10,8 +27,8 @@ let clientInstance: SupabaseClient | null = null;
  * Returns null if credentials are not configured.
  */
 export function createSupabaseBrowserClient(): SupabaseClient | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
   if (!url || !anonKey) {
     return null;
@@ -35,15 +52,49 @@ export function createSupabaseBrowserClient(): SupabaseClient | null {
 export const getSupabaseClient = createSupabaseBrowserClient;
 export const getSupabaseBrowserClient = createSupabaseBrowserClient;
 
+/**
+ * Safe configuration diagnostic helper reporting only boolean indicators & public hostname.
+ * Never leaks keys or secrets.
+ */
+export function getBrowserSupabaseClientDiagnostic(): {
+  hasPublicSupabaseUrl: boolean;
+  hasPublicAnonKey: boolean;
+  browserClientCreated: boolean;
+  hostname?: string;
+} {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  let hostname: string | undefined;
+
+  try {
+    if (url) {
+      hostname = new URL(url).hostname;
+    }
+  } catch {
+    hostname = undefined;
+  }
+
+  const hasPublicSupabaseUrl = Boolean(url && url.length > 0);
+  const hasPublicAnonKey = Boolean(anonKey && anonKey.length > 0);
+  const browserClientCreated = Boolean(hasPublicSupabaseUrl && hasPublicAnonKey);
+
+  return {
+    hasPublicSupabaseUrl,
+    hasPublicAnonKey,
+    browserClientCreated,
+    ...(hostname ? { hostname } : {}),
+  };
+}
+
 export async function testSupabaseConnection(): Promise<{ success: boolean; message: string; details?: any }> {
-  if (!isSupabaseConfigured()) {
+  if (!isPublicSupabaseConfigured()) {
     return {
       success: false,
       message: 'NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable is not configured.',
     };
   }
 
-  const client = getSupabaseClient();
+  const client = createSupabaseBrowserClient();
   if (!client) {
     return {
       success: false,
