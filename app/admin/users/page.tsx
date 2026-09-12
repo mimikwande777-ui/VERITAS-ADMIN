@@ -15,6 +15,7 @@ import {
   X, 
   Loader2,
   Lock,
+  KeyRound,
   ArrowRight
 } from 'lucide-react';
 import { AdminAccessGuard } from '@/components/admin-access-guard';
@@ -65,8 +66,9 @@ export default function AdminUsersPage() {
   const [roleError, setRoleError] = useState<string | null>(null);
   const [roleSuccessMsg, setRoleSuccessMsg] = useState<string | null>(null);
 
-  // Reissue Invite State
+  // Reissue Invite & Password Setup State
   const [reissueLoadingId, setReissueLoadingId] = useState<string | null>(null);
+  const [passwordSetupLoadingId, setPasswordSetupLoadingId] = useState<string | null>(null);
   const [reissueFeedback, setReissueFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const fetchPartners = useCallback(async (showLoader = false) => {
@@ -280,6 +282,67 @@ export default function AdminUsersPage() {
       });
     } finally {
       setReissueLoadingId(null);
+    }
+  };
+
+  // Handle Send Password Setup (for confirmed partners needing password setup)
+  const handleSendPasswordSetup = async (partner: PartnerUser) => {
+    if (partner.isSelf || partner.role === 'super_admin') {
+      alert('Self-modification prevented: Founder / Super Admin account cannot use partner password setup flow.');
+      return;
+    }
+
+    if (!['operations', 'marketing'].includes(partner.role)) {
+      alert('Password setup is restricted to Operations and Marketing partners.');
+      return;
+    }
+
+    if (!window.confirm(`Send password setup email to ${partner.email}? The partner will receive an email link to configure their password at /auth/setup-password.`)) {
+      return;
+    }
+
+    setPasswordSetupLoadingId(partner.userId);
+    setReissueFeedback(null);
+
+    try {
+      const res = await fetch('/api/admin/users/send-password-setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: partner.userId,
+          email: partner.email,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success === true) {
+        setReissueFeedback({
+          type: 'success',
+          message: data.message || `Password setup email sent to ${partner.email}.`,
+        });
+
+        void recordAuditLog({
+          action: 'auth.login' as any,
+          actionLabel: `Super Admin sent password setup link to ${partner.email}`,
+          targetType: 'auth',
+          targetId: partner.userId,
+          actorEmail: currentAdmin?.email,
+          actorRole: currentAdmin?.role,
+        });
+      } else {
+        setReissueFeedback({
+          type: 'error',
+          message: data.error || 'Failed to send password setup email. Check server logs.',
+        });
+      }
+    } catch (err: any) {
+      setReissueFeedback({
+        type: 'error',
+        message: err?.message || 'Network error while sending password setup email.',
+      });
+    } finally {
+      setPasswordSetupLoadingId(null);
     }
   };
 
@@ -646,6 +709,28 @@ export default function AdminUsersPage() {
                                   <>
                                     <Mail className="w-3 h-3 text-amber-400" />
                                     <span>REISSUE INVITE</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+
+                            {partner.status !== 'LEGACY_NOT_SENT' && ['operations', 'marketing'].includes(partner.role) && (
+                              <button
+                                type="button"
+                                onClick={() => void handleSendPasswordSetup(partner)}
+                                disabled={passwordSetupLoadingId === partner.userId}
+                                className="px-2.5 py-1 bg-[#141418] hover:bg-[#202028] border border-[#3b3b47] hover:border-[#D4AF37]/50 text-zinc-200 hover:text-[#D4AF37] rounded-xs text-[11px] font-mono transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 shrink-0"
+                                title="Send password setup email link to partner"
+                              >
+                                {passwordSetupLoadingId === partner.userId ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin text-[#D4AF37]" />
+                                    <span>SENDING...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <KeyRound className="w-3 h-3 text-[#D4AF37]" />
+                                    <span>SEND PASSWORD SETUP</span>
                                   </>
                                 )}
                               </button>

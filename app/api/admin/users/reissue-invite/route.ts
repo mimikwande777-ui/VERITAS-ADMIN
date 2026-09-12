@@ -231,9 +231,12 @@ export async function POST(request: NextRequest) {
     // Step 4: Call inviteUserByEmail
     console.log(`[INVITE_USER_START] Calling inviteUserByEmail for email: ${targetEmail}`);
 
-    const originHeader = request.headers.get('origin') || request.headers.get('referer') || 'https://veritas-admin-three.vercel.app';
-    const cleanOrigin = originHeader.split('?')[0].replace(/\/$/, '');
-    const redirectTo = `${cleanOrigin}/auth/confirm?next=/admin/reset-password`;
+    const adminAppUrl = 
+      process.env.ADMIN_APP_URL || 
+      process.env.NEXT_PUBLIC_SITE_URL || 
+      'https://veritas-admin-three.vercel.app';
+    const cleanBaseUrl = adminAppUrl.split('?')[0].replace(/\/$/, '');
+    const redirectTo = `${cleanBaseUrl}/auth/confirm?next=/auth/setup-password`;
 
     const { data: inviteData, error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(
       targetEmail,

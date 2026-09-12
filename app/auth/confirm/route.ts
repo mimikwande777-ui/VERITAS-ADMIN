@@ -6,44 +6,69 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const token_hash = searchParams.get('token_hash');
-  const type = searchParams.get('type');
-  
-  // Safe redirect URL on verification error
-  const errorRedirect = new URL('/admin/reset-password?error=invalid', request.url);
+  const type = searchParams.get('type') as any;
+  const code = searchParams.get('code');
+  const nextParam = searchParams.get('next');
 
-  // 1. Reads token_hash and type
-  // 2. Only accepts type === "recovery" for this recovery flow
-  if (!token_hash || type !== 'recovery') {
+  // Determine destination path safely (must start with / and not contain protocol)
+  let destinationPath = '/auth/setup-password';
+  if (nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')) {
+    destinationPath = nextParam;
+  } else if (type === 'recovery' && !nextParam) {
+    destinationPath = '/admin/reset-password';
+  }
+
+  // Safe error redirect URL
+  const errorRedirect = new URL(`${destinationPath.includes('setup-password') ? '/auth/setup-password' : '/admin/reset-password'}?error=invalid`, request.url);
+
+  // Verification requires either token_hash or code
+  if (!token_hash && !code) {
     return NextResponse.redirect(errorRedirect);
   }
 
-  // 4 & 9. Normal server Supabase client using anon key (never privileged secret key)
   const supabase = createServerSupabaseClient();
   if (!supabase) {
     return NextResponse.redirect(errorRedirect);
   }
 
   try {
-    // 3. Verify the recovery token hash
-    const { data, error } = await supabase.auth.verifyOtp({
-      token_hash,
-      type: 'recovery',
-    });
+    let session = null;
 
-    if (error || !data?.session) {
+    if (token_hash) {
+      const allowedTypes = ['invite', 'recovery', 'signup', 'magiclink', 'email_change'];
+      const verifyType = allowedTypes.includes(type) ? type : 'recovery';
+
+      const { data, error } = await supabase.auth.verifyOtp({
+        token_hash,
+        type: verifyType,
+      });
+
+      if (error || !data?.session) {
+        console.error('[auth/confirm] verifyOtp error:', error?.message || 'No session returned');
+        return NextResponse.redirect(errorRedirect);
+      }
+      session = data.session;
+    } else if (code) {
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error || !data?.session) {
+        console.error('[auth/confirm] exchangeCodeForSession error:', error?.message || 'No session returned');
+        return NextResponse.redirect(errorRedirect);
+      }
+      session = data.session;
+    }
+
+    if (!session) {
       return NextResponse.redirect(errorRedirect);
     }
 
-    const { session } = data;
     const isProd = process.env.NODE_ENV === 'production';
     const maxAge = session.expires_in || 60 * 60 * 24 * 7;
 
-    // 5. Redirect ONLY to /admin/reset-password (blocks open redirects, ignores next param)
-    // 6. Final URL completely omits token_hash and auth parameters
-    const resetRedirect = new URL('/admin/reset-password', request.url);
-    const response = NextResponse.redirect(resetRedirect);
+    // Build clean target redirect URL (omits token_hash, code, or secret parameters)
+    const targetRedirect = new URL(destinationPath, request.url);
+    const response = NextResponse.redirect(targetRedirect);
 
-    // 4. Secure HttpOnly cookie persistence
+    // Secure HttpOnly cookie persistence
     response.cookies.set('sb-access-token', session.access_token, {
       httpOnly: true,
       secure: isProd,
@@ -71,8 +96,8 @@ export async function GET(request: NextRequest) {
     }
 
     return response;
-  } catch {
-    // 8. Safe catch without logging tokens or hashes
+  } catch (err: any) {
+    console.error('[auth/confirm] exception during auth confirmation:', err?.message);
     return NextResponse.redirect(errorRedirect);
   }
 }

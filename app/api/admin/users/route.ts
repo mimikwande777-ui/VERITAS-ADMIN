@@ -166,12 +166,20 @@ export async function POST(request: NextRequest) {
     let targetUserId = existingAuthUser?.id;
 
     if (!targetUserId) {
+      const adminAppUrl = 
+        process.env.ADMIN_APP_URL || 
+        process.env.NEXT_PUBLIC_SITE_URL || 
+        'https://veritas-admin-three.vercel.app';
+      const cleanBaseUrl = adminAppUrl.split('?')[0].replace(/\/$/, '');
+      const redirectTo = `${cleanBaseUrl}/auth/confirm?next=/auth/setup-password`;
+
       // Invite user by email using Supabase Auth Admin API
       const inviteRes = await serviceClient.auth.admin.inviteUserByEmail(email, {
         data: {
           full_name: name || email.split('@')[0].toUpperCase(),
           partner_role: role,
         },
+        redirectTo,
       });
 
       if (inviteRes.error || !inviteRes.data?.user) {
