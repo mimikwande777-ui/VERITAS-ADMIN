@@ -1,6 +1,7 @@
 import { getSupabaseClient } from './client';
 import { getSupabaseEnvConfig } from './config';
 import { DbProductMedia } from './types';
+import { getClientAuthHeaders } from './client-auth-headers';
 
 /**
  * Universal VERITAS Media URL Resolver
@@ -155,6 +156,36 @@ export async function createProductMediaInSupabase(
   isPrimary: boolean = false,
   colourId?: string | null
 ): Promise<{ success: boolean; data?: any; error?: string }> {
+  if (typeof window !== 'undefined') {
+    try {
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch('/api/admin/media', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          productId,
+          storagePath: storagePath.trim(),
+          mediaType,
+          altText: altText || null,
+          isPrimary,
+          colourId: colourId || null,
+        }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: json.error || `Error ${res.status}: Failed to attach media` };
+      }
+      return { success: true, data: json.media };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error attaching media' };
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) return { success: false, error: 'Supabase client unconfigured' };
 
@@ -186,7 +217,46 @@ export async function createProductMediaInSupabase(
   }
 }
 
+export function dataUrlToBlob(dataUrl: string): Blob | null {
+  try {
+    const parts = dataUrl.split(',');
+    if (parts.length < 2) return null;
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+    const bstr = atob(parts[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  } catch {
+    return null;
+  }
+}
+
 export async function deleteMediaFromSupabase(mediaId: string): Promise<{ success: boolean; error?: string }> {
+  if (typeof window !== 'undefined') {
+    try {
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch(`/api/admin/media?id=${encodeURIComponent(mediaId)}`, {
+        method: 'DELETE',
+        headers: {
+          ...authHeaders,
+        },
+        credentials: 'include',
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: json.error || `Error ${res.status}: Failed to delete media` };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error deleting media' };
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) return { success: false, error: 'Supabase client unconfigured' };
 

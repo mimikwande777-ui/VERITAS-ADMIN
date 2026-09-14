@@ -103,6 +103,9 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
   const { isOnline } = usePWA();
   const { hasAccess } = useAdminAuth();
   const canEditPrice = hasAccess('canEditProductPrice');
+  const canPublish = hasAccess('canPublishProducts');
+  const canEditProduction = hasAccess('canEditProductProduction');
+  const canDelete = hasAccess('canDeleteProducts');
 
   // Basic Information
   const [name, setName] = useState(initialProduct?.name || '');
@@ -609,21 +612,27 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
           </button>
           <button
             type="button"
-            onClick={() => handleSaveAction(status === 'DRAFT' ? 'ACTIVE' : status, published)}
+            onClick={() => handleSaveAction(status === 'DRAFT' ? (canPublish ? 'ACTIVE' : 'DRAFT') : status, canPublish ? published : false)}
             disabled={isSubmitting}
             className="px-4 py-2 bg-[#1E1E1E] hover:bg-[#282828] border border-[#3A3A3A] text-xs font-mono font-bold uppercase text-white transition-colors disabled:opacity-50"
           >
             Save Product
           </button>
-          <button
-            type="button"
-            onClick={() => handleSaveAction('ACTIVE', true)}
-            disabled={isSubmitting}
-            className="flex items-center px-5 py-2 bg-[#D4AF37] hover:bg-[#B3932F] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50 shadow-lg shadow-[#D4AF37]/10"
-          >
-            <CheckCircle2 className="w-4 h-4 mr-1.5" />
-            {isSubmitting ? 'Processing...' : 'Publish to Store'}
-          </button>
+          {canPublish ? (
+            <button
+              type="button"
+              onClick={() => handleSaveAction('ACTIVE', true)}
+              disabled={isSubmitting}
+              className="flex items-center px-5 py-2 bg-[#D4AF37] hover:bg-[#B3932F] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50 shadow-lg shadow-[#D4AF37]/10"
+            >
+              <CheckCircle2 className="w-4 h-4 mr-1.5" />
+              {isSubmitting ? 'Processing...' : 'Publish to Store'}
+            </button>
+          ) : (
+            <div className="text-[10px] font-mono text-amber-400/80 bg-amber-950/40 border border-amber-900/40 px-3 py-2 rounded">
+              PUBLISH: SUPER ADMIN ONLY
+            </div>
+          )}
         </div>
       </div>
 
@@ -1248,9 +1257,15 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                   Section H — VERITAS Design Information
                 </h2>
               </div>
-              <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-950/60 border border-amber-800/50 px-2 py-0.5 rounded">
-                ADMIN / PRODUCTION INFORMATION
-              </span>
+              {canEditProduction ? (
+                <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-950/60 border border-amber-800/50 px-2 py-0.5 rounded">
+                  ADMIN / PRODUCTION INFORMATION
+                </span>
+              ) : (
+                <span className="text-[10px] font-mono font-bold text-gray-400 bg-gray-900 border border-gray-700 px-2 py-0.5 rounded">
+                  OPERATIONS & SUPER ADMIN ONLY (READ-ONLY)
+                </span>
+              )}
             </div>
 
             <div className="bg-amber-950/20 border border-amber-900/30 p-3 rounded mb-5 flex items-start gap-2.5">
@@ -1269,10 +1284,11 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                   </label>
                   <input
                     type="text"
+                    disabled={!canEditProduction}
                     value={designName}
                     onChange={(e) => setDesignName(e.target.value)}
                     placeholder="e.g. THE MONOLITH OVERSIZE BACKPRINT"
-                    className="w-full bg-[#0A0A0A] border border-[#2B2B2B] p-3 text-xs text-white focus:outline-none focus:border-[#D4AF37]"
+                    className="w-full bg-[#0A0A0A] border border-[#2B2B2B] p-3 text-xs text-white focus:outline-none focus:border-[#D4AF37] disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
 
@@ -1282,9 +1298,10 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                     Print / Embroidery Placement
                   </label>
                   <select
+                    disabled={!canEditProduction}
                     value={printPlacement}
                     onChange={(e) => setPrintPlacement(e.target.value)}
-                    className="w-full bg-[#0A0A0A] border border-[#2B2B2B] p-3 text-xs font-mono text-white focus:outline-none focus:border-[#D4AF37]"
+                    className="w-full bg-[#0A0A0A] border border-[#2B2B2B] p-3 text-xs font-mono text-white focus:outline-none focus:border-[#D4AF37] disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {PRINT_PLACEMENTS.map((p) => (
                       <option key={p} value={p}>{p}</option>
@@ -1300,9 +1317,10 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <select
+                    disabled={!canEditProduction}
                     value={printSize}
                     onChange={(e) => setPrintSize(e.target.value)}
-                    className="w-full bg-[#0A0A0A] border border-[#2B2B2B] p-3 text-xs font-mono text-white focus:outline-none focus:border-[#D4AF37]"
+                    className="w-full bg-[#0A0A0A] border border-[#2B2B2B] p-3 text-xs font-mono text-white focus:outline-none focus:border-[#D4AF37] disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {PRINT_SIZES.map((s) => (
                       <option key={s} value={s}>{s}</option>
@@ -1310,10 +1328,11 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                   </select>
                   <input
                     type="text"
+                    disabled={!canEditProduction}
                     value={printSize}
                     onChange={(e) => setPrintSize(e.target.value)}
                     placeholder="e.g. 42cm x 50cm"
-                    className="w-full bg-[#0A0A0A] border border-[#2B2B2B] p-3 text-xs font-mono text-white focus:outline-none focus:border-[#D4AF37]"
+                    className="w-full bg-[#0A0A0A] border border-[#2B2B2B] p-3 text-xs font-mono text-white focus:outline-none focus:border-[#D4AF37] disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -1325,10 +1344,11 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                 </label>
                 <textarea
                   rows={3}
+                  disabled={!canEditProduction}
                   value={designNotes}
                   onChange={(e) => setDesignNotes(e.target.value)}
                   placeholder="e.g. High-density puff ink for front chest logo. Soft-hand discharge screenprint for back typography."
-                  className="w-full bg-[#0A0A0A] border border-[#2B2B2B] p-3 text-xs text-white font-mono focus:outline-none focus:border-[#D4AF37] leading-relaxed"
+                  className="w-full bg-[#0A0A0A] border border-[#2B2B2B] p-3 text-xs text-white font-mono focus:outline-none focus:border-[#D4AF37] leading-relaxed disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -1346,10 +1366,15 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
               SECTION I — PUBLISHING STATUS & ACTIONS
               ================================================== */}
           <div className="bg-[#111] border border-[#1F1F1F] p-6 shadow-sm">
-            <div className="border-b border-[#1F1F1F] pb-3 mb-5">
+            <div className="flex items-center justify-between border-b border-[#1F1F1F] pb-3 mb-5">
               <h2 className="text-xs font-bold uppercase tracking-wider text-[#D4AF37] font-mono">
                 Section I — Status & Publishing
               </h2>
+              {!canPublish && (
+                <span className="text-[9px] font-mono text-amber-400 bg-amber-950/40 border border-amber-800/40 px-1.5 py-0.5 rounded font-bold">
+                  SUPER ADMIN
+                </span>
+              )}
             </div>
 
             <div className="space-y-5">
@@ -1363,8 +1388,9 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                     <button
                       key={st}
                       type="button"
+                      disabled={!canPublish && st !== 'DRAFT'}
                       onClick={() => setStatus(st)}
-                      className={`py-2 text-xs font-mono font-bold uppercase transition-all border ${
+                      className={`py-2 text-xs font-mono font-bold uppercase transition-all border disabled:opacity-40 disabled:cursor-not-allowed ${
                         status === st
                           ? (st === 'ACTIVE' ? 'bg-emerald-950 border-emerald-500 text-emerald-300' :
                              st === 'ARCHIVED' ? 'bg-red-950 border-red-500 text-red-300' :
@@ -1391,18 +1417,19 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                       Storefront Visibility
                     </span>
                     <span className="text-[10px] text-[#777] font-mono block mt-0.5">
-                      Requires Status = ACTIVE
+                      {canPublish ? 'Requires Status = ACTIVE' : 'Super Admin permission required'}
                     </span>
                   </div>
                   <button
                     type="button"
+                    disabled={!canPublish}
                     onClick={() => {
                       if (!published && status !== 'ACTIVE') {
                         setStatus('ACTIVE');
                       }
                       setPublished(!published);
                     }}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                       published ? 'bg-[#D4AF37]' : 'bg-[#2A2A2A]'
                     }`}
                   >
@@ -1417,19 +1444,21 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
 
               {/* ACTION BUTTONS IN SIDEBAR */}
               <div className="pt-5 border-t border-[#1F1F1F] space-y-2.5">
-                <button
-                  type="button"
-                  onClick={() => handleSaveAction('ACTIVE', true)}
-                  disabled={isSubmitting || !isOnline}
-                  className="w-full py-3 bg-[#D4AF37] hover:bg-[#B3932F] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider font-mono flex items-center justify-center gap-2 shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  {!isOnline ? 'Offline - Cannot Publish' : isSubmitting ? 'Publishing...' : 'Publish to Store'}
-                </button>
+                {canPublish && (
+                  <button
+                    type="button"
+                    onClick={() => handleSaveAction('ACTIVE', true)}
+                    disabled={isSubmitting || !isOnline}
+                    className="w-full py-3 bg-[#D4AF37] hover:bg-[#B3932F] text-[#0A0A0A] text-xs font-bold uppercase tracking-wider font-mono flex items-center justify-center gap-2 shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    {!isOnline ? 'Offline - Cannot Publish' : isSubmitting ? 'Publishing...' : 'Publish to Store'}
+                  </button>
+                )}
 
                 <button
                   type="button"
-                  onClick={() => handleSaveAction(status, published)}
+                  onClick={() => handleSaveAction(status === 'DRAFT' ? (canPublish ? 'ACTIVE' : 'DRAFT') : status, canPublish ? published : false)}
                   disabled={isSubmitting || !isOnline}
                   className="w-full py-2.5 bg-[#1C1C1C] hover:bg-[#262626] border border-[#333] text-white text-xs font-mono font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >

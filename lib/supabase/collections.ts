@@ -1,6 +1,7 @@
 import { getSupabaseClient } from './client';
 import { DbCollection } from './types';
 import { recordAuditLog } from './audit';
+import { getClientAuthHeaders } from './client-auth-headers';
 
 export interface SupabaseCollectionRow {
   id: string;
@@ -51,15 +52,56 @@ export async function createCollectionInSupabase(
   payloadOrName: string | { title?: string; name?: string; slug?: string; handle?: string; description?: string; is_active?: boolean },
   description?: string
 ): Promise<{ success: boolean; data?: SupabaseCollectionRow | null; error?: string }> {
+  const colName = typeof payloadOrName === 'string' ? payloadOrName : (payloadOrName.title || payloadOrName.name || '');
+  const colDesc = typeof payloadOrName === 'string' ? description : payloadOrName.description;
+  const customSlug = typeof payloadOrName === 'object' ? (payloadOrName.slug || payloadOrName.handle) : null;
+  const isActive = typeof payloadOrName === 'object' && payloadOrName.is_active !== undefined ? payloadOrName.is_active : true;
+
+  if (typeof window !== 'undefined') {
+    try {
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch('/api/admin/collections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: colName,
+          slug: customSlug,
+          description: colDesc,
+          is_active: isActive,
+        }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: json.error || `Error ${res.status}: Failed to create collection` };
+      }
+
+      const data = json.collection;
+      const row: SupabaseCollectionRow = {
+        id: data.id,
+        title: data.name,
+        name: data.name,
+        slug: data.slug,
+        handle: data.slug,
+        description: data.description,
+        image_path: data.image_path,
+        is_active: data.is_active ?? true,
+        created_at: data.created_at,
+      };
+      return { success: true, data: row };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error creating collection' };
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) return { success: false, error: 'Supabase client unconfigured' };
 
   try {
-    const colName = typeof payloadOrName === 'string' ? payloadOrName : (payloadOrName.title || payloadOrName.name || '');
-    const colDesc = typeof payloadOrName === 'string' ? description : payloadOrName.description;
-    const customSlug = typeof payloadOrName === 'object' ? (payloadOrName.slug || payloadOrName.handle) : null;
-    const isActive = typeof payloadOrName === 'object' && payloadOrName.is_active !== undefined ? payloadOrName.is_active : true;
-
     const slug = customSlug || colName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const { data, error } = await client
       .from('collections')
@@ -86,6 +128,32 @@ export async function createCollectionInSupabase(
 }
 
 export async function updateCollectionInSupabase(id: string, name: string, description?: string, isActive?: boolean): Promise<DbCollection | null> {
+  if (typeof window !== 'undefined') {
+    try {
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch('/api/admin/collections', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          id,
+          name,
+          description,
+          is_active: isActive,
+        }),
+      });
+
+      if (!res.ok) return null;
+      const json = await res.json().catch(() => ({}));
+      return json.collection || null;
+    } catch {
+      return null;
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) return null;
 
@@ -112,6 +180,41 @@ export async function toggleCollectionStatusInSupabase(
   id: string, 
   nextStatus: boolean
 ): Promise<{ success: boolean; collection?: any; error?: string }> {
+  if (typeof window !== 'undefined') {
+    try {
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch('/api/admin/collections', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          id,
+          is_active: nextStatus,
+        }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: json.error || `Error ${res.status}: Failed to update collection status` };
+      }
+
+      void recordAuditLog({
+        action: 'collection.toggle',
+        actionLabel: `${nextStatus ? 'Activated' : 'Deactivated'} collection "${json.collection?.name || id}"`,
+        targetType: 'collection',
+        targetId: id,
+        details: { isActive: nextStatus, slug: json.collection?.slug }
+      });
+
+      return { success: true, collection: json.collection };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error updating collection' };
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) return { success: false, error: 'Supabase client unconfigured' };
 
@@ -122,17 +225,9 @@ export async function toggleCollectionStatusInSupabase(
       .eq('id', id);
 
     if (updateErr) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.error('[COLLECTION STATUS TOGGLE ERROR]', {
-          collectionId: id,
-          requestedStatus: nextStatus,
-          error: updateErr.message,
-        });
-      }
       return { success: false, error: updateErr.message };
     }
 
-    // MANDATORY RE-READ: Immediately fetch from Supabase to verify persistence
     const { data: refetched, error: readErr } = await client
       .from('collections')
       .select('*')
@@ -146,30 +241,6 @@ export async function toggleCollectionStatusInSupabase(
       };
     }
 
-    if (refetched.is_active !== nextStatus) {
-      return { 
-        success: false, 
-        error: `Integrity verification error: Database is_active is (${refetched.is_active}), expected (${nextStatus}).` 
-      };
-    }
-
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[COLLECTION STATUS TOGGLE DIAGNOSTICS]', {
-        collectionId: id,
-        requestedStatus: nextStatus,
-        refetchedStatus: refetched.is_active,
-        verified: true,
-      });
-    }
-
-    void recordAuditLog({
-      action: 'collection.toggle',
-      actionLabel: `${nextStatus ? 'Activated' : 'Deactivated'} collection "${refetched.name}" (${id})`,
-      targetType: 'collection',
-      targetId: id,
-      details: { isActive: nextStatus, slug: refetched.slug }
-    });
-
     return { success: true, collection: refetched };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to toggle status' };
@@ -177,6 +248,27 @@ export async function toggleCollectionStatusInSupabase(
 }
 
 export async function deleteCollectionInSupabase(id: string): Promise<{ success: boolean; error?: string }> {
+  if (typeof window !== 'undefined') {
+    try {
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch(`/api/admin/collections?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: {
+          ...authHeaders,
+        },
+        credentials: 'include',
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: json.error || `Error ${res.status}: Failed to delete collection` };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error deleting collection' };
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) return { success: false, error: 'Supabase client unconfigured' };
 
@@ -193,3 +285,4 @@ export async function deleteCollectionInSupabase(id: string): Promise<{ success:
     return { success: false, error: err?.message || 'Delete failed' };
   }
 }
+

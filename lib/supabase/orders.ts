@@ -1,6 +1,7 @@
 import { getSupabaseClient } from './client';
 import { getSupabaseEnvConfig } from './config';
 import { recordAuditLog } from './audit';
+import { getClientAuthHeaders } from './client-auth-headers';
 import { 
   DbOrder, 
   DbOrderItem, 
@@ -244,6 +245,32 @@ export async function updateOrderStatusInSupabase(
   updates: { payment_status?: string; order_status?: string; fulfilment_status?: string },
   customClient?: any
 ): Promise<{ success: boolean; error: string | null }> {
+  if (typeof window !== 'undefined') {
+    try {
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch('/api/admin/orders', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          orderId: dbOrderId,
+          ...updates,
+        }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: json.error || `Error ${res.status}: Failed to update order status` };
+      }
+      return { success: true, error: null };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error updating order status' };
+    }
+  }
+
   const client = customClient || getSupabaseClient();
   if (!client) {
     console.error('[STATUS UPDATE ERROR] Supabase client is unconfigured.');

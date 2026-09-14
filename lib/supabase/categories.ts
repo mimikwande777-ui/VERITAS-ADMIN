@@ -1,5 +1,6 @@
 import { getSupabaseClient } from './client';
 import { DbCategory } from './types';
+import { getClientAuthHeaders } from './client-auth-headers';
 
 export interface SupabaseCategoryRow {
   id: string;
@@ -44,14 +45,51 @@ export async function createCategoryInSupabase(
   payloadOrName: string | { title?: string; name?: string; slug?: string; description?: string },
   description?: string
 ): Promise<{ success: boolean; data?: SupabaseCategoryRow | null; error?: string }> {
+  const catName = typeof payloadOrName === 'string' ? payloadOrName : (payloadOrName.title || payloadOrName.name || '');
+  const catDesc = typeof payloadOrName === 'string' ? description : payloadOrName.description;
+  const customSlug = typeof payloadOrName === 'object' && payloadOrName.slug ? payloadOrName.slug : null;
+
+  if (typeof window !== 'undefined') {
+    try {
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch('/api/admin/categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: catName,
+          slug: customSlug,
+          description: catDesc,
+        }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: json.error || `Error ${res.status}: Failed to create category` };
+      }
+
+      const data = json.category;
+      const row: SupabaseCategoryRow = {
+        id: data.id,
+        title: data.name,
+        name: data.name,
+        slug: data.slug,
+        description: data.description,
+        created_at: data.created_at
+      };
+      return { success: true, data: row };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error creating category' };
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) return { success: false, error: 'Supabase client unconfigured' };
 
   try {
-    const catName = typeof payloadOrName === 'string' ? payloadOrName : (payloadOrName.title || payloadOrName.name || '');
-    const catDesc = typeof payloadOrName === 'string' ? description : payloadOrName.description;
-    const customSlug = typeof payloadOrName === 'object' && payloadOrName.slug ? payloadOrName.slug : null;
-
     const slug = customSlug || catName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const { data, error } = await client
       .from('categories')
@@ -75,6 +113,31 @@ export async function createCategoryInSupabase(
 }
 
 export async function updateCategoryInSupabase(id: string, name: string, description?: string): Promise<DbCategory | null> {
+  if (typeof window !== 'undefined') {
+    try {
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch('/api/admin/categories', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          id,
+          name,
+          description,
+        }),
+      });
+
+      if (!res.ok) return null;
+      const json = await res.json().catch(() => ({}));
+      return json.category || null;
+    } catch {
+      return null;
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) return null;
 
@@ -95,6 +158,27 @@ export async function updateCategoryInSupabase(id: string, name: string, descrip
 }
 
 export async function deleteCategoryInSupabase(id: string): Promise<{ success: boolean; error?: string }> {
+  if (typeof window !== 'undefined') {
+    try {
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch(`/api/admin/categories?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: {
+          ...authHeaders,
+        },
+        credentials: 'include',
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: json.error || `Error ${res.status}: Failed to delete category` };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error deleting category' };
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) return { success: false, error: 'Supabase client unconfigured' };
 
@@ -112,3 +196,4 @@ export async function deleteCategoryInSupabase(id: string): Promise<{ success: b
     return { success: false, error: err?.message || 'Delete failed' };
   }
 }
+

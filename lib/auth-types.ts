@@ -27,20 +27,23 @@ export interface RolePermissions {
   // Products
   canViewProducts: boolean;
   canCreateProducts: boolean;
-  canEditProducts: boolean;         // Full edit including price/variants
-  canEditProductContent: boolean;  // Marketing content (title, description, tags, media)
-  canEditProductPrice: boolean;    // Price & cost mutations
-  canDeleteProducts: boolean;
+  canEditProducts: boolean;             // Full master edit
+  canEditProductContent: boolean;      // Content (title, description, tags, images, specs)
+  canEditProductProduction: boolean;   // Production details (OTC sku, facility, gsm, composition)
+  canEditProductPrice: boolean;        // Price, cost & compare-at mutations (Super Admin only)
+  canPublishProducts: boolean;         // Publish / unpublish / archive (Super Admin only)
+  canDeleteProducts: boolean;          // Permanent deletion (Super Admin only)
 
   // Inventory
   canViewInventory: boolean;
-  canEditInventory: boolean;
+  canEditInventory: boolean;           // Stock counts & thresholds (Operations & Super Admin)
 
   // Orders & Fulfilment
   canViewOrders: boolean;
-  canUpdateOrderFulfilment: boolean;
-  canCancelOrders: boolean;
-  canRefundOrders: boolean;
+  canUpdateOrderFulfilment: boolean;   // Fulfilment status only (Operations & Super Admin)
+  canUpdateOrderPayment: boolean;      // Payment status & financials (Super Admin only)
+  canCancelOrders: boolean;            // Cancellation (Super Admin only)
+  canRefundOrders: boolean;            // Refunds (Super Admin only)
 
   // Media
   canViewMedia: boolean;
@@ -49,9 +52,9 @@ export interface RolePermissions {
 
   // Collections & Categories
   canViewCollections: boolean;
-  canEditCollections: boolean;
+  canEditCollections: boolean;         // Creative & Marketing and Super Admin
   canViewCategories: boolean;
-  canEditCategories: boolean;
+  canEditCategories: boolean;          // Creative & Marketing and Super Admin
 
   // Discounts
   canViewDiscounts: boolean;
@@ -110,12 +113,15 @@ export const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalAdminRole, RolePermissi
     canCreateProducts: true,
     canEditProducts: true,
     canEditProductContent: true,
+    canEditProductProduction: true,
     canEditProductPrice: true,
+    canPublishProducts: true,
     canDeleteProducts: true,
     canViewInventory: true,
     canEditInventory: true,
     canViewOrders: true,
     canUpdateOrderFulfilment: true,
+    canUpdateOrderPayment: true,
     canCancelOrders: true,
     canRefundOrders: true,
     canViewMedia: true,
@@ -144,31 +150,34 @@ export const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalAdminRole, RolePermissi
   operations: {
     canViewProducts: true,
     canCreateProducts: true,
-    canEditProducts: true,
-    canEditProductContent: true,
-    canEditProductPrice: false, // Super Admin only
-    canDeleteProducts: false,   // Super Admin only
+    canEditProducts: false,           // No broad unconstrained edits
+    canEditProductContent: true,      // Name, description, tags, care
+    canEditProductProduction: true,   // OTC specs, weight, composition, variants
+    canEditProductPrice: false,       // Super Admin only (NO PRICE/COST ACCESS)
+    canPublishProducts: false,        // Super Admin only (CANNOT PUBLISH)
+    canDeleteProducts: false,         // Super Admin only (CANNOT DELETE)
     canViewInventory: true,
-    canEditInventory: true,
+    canEditInventory: true,           // Allowed to update stock
     canViewOrders: true,
-    canUpdateOrderFulfilment: true,
-    canCancelOrders: false,     // Super Admin only
-    canRefundOrders: false,     // Super Admin only
+    canUpdateOrderFulfilment: true,   // Allowed to update fulfilment state only
+    canUpdateOrderPayment: false,      // Super Admin only
+    canCancelOrders: false,           // Super Admin only
+    canRefundOrders: false,           // Super Admin only
     canViewMedia: true,
-    canUploadMedia: true,
-    canDeleteMedia: false,
-    canViewCollections: true,   // View allowed
-    canEditCollections: false,  // Creative & Marketing only
-    canViewCategories: true,    // View allowed
-    canEditCategories: false,   // Creative & Marketing only
-    canViewDiscounts: true,     // View allowed
+    canUploadMedia: true,             // Allowed to upload media
+    canDeleteMedia: true,
+    canViewCollections: true,         // VIEW ONLY
+    canEditCollections: false,        // Cannot edit/create/delete collections
+    canViewCategories: true,          // VIEW ONLY
+    canEditCategories: false,         // Cannot edit/create/delete categories
+    canViewDiscounts: true,           // VIEW ONLY
     canCreateDiscounts: false,
     canEditDiscounts: false,
-    canViewSales: true,         // View allowed
+    canViewSales: true,               // Allowed to view sales
     canExportSales: true,
     canViewFinancialDetails: false,
     canViewCustomers: true,
-    canViewSensitiveCustomers: false, // Disclose address only in order fulfilment
+    canViewSensitiveCustomers: false, // Customer PII only disclosed in fulfilment context
     canViewSettings: false,
     canManageSettings: false,
     canManageUsers: false,
@@ -180,30 +189,33 @@ export const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalAdminRole, RolePermissi
   marketing: {
     canViewProducts: true,
     canCreateProducts: true,
-    canEditProducts: false,        // Cannot edit pricing/variants
-    canEditProductContent: true,   // Can edit content, titles, descriptions, media
-    canEditProductPrice: false,    // Super Admin only
-    canDeleteProducts: false,      // Super Admin only
-    canViewInventory: true,       // View allowed (read-only)
-    canEditInventory: false,      // Operations only
-    canViewOrders: true,          // View allowed (read-only)
-    canUpdateOrderFulfilment: false, // Operations only
+    canEditProducts: false,           // No broad unconstrained edits
+    canEditProductContent: true,      // Can edit marketing content, descriptions, images
+    canEditProductProduction: false,  // Operations & Super Admin only
+    canEditProductPrice: false,       // Super Admin only (NO PRICE/COST ACCESS)
+    canPublishProducts: false,        // Super Admin only (CANNOT PUBLISH)
+    canDeleteProducts: false,         // Super Admin only (CANNOT DELETE)
+    canViewInventory: true,           // VIEW ONLY (no editing stock)
+    canEditInventory: false,          // Operations only
+    canViewOrders: true,              // VIEW ONLY
+    canUpdateOrderFulfilment: false,  // Operations only
+    canUpdateOrderPayment: false,     // Super Admin only
     canCancelOrders: false,
     canRefundOrders: false,
     canViewMedia: true,
-    canUploadMedia: true,
-    canDeleteMedia: false,
+    canUploadMedia: true,             // Can upload media
+    canDeleteMedia: true,
     canViewCollections: true,
-    canEditCollections: true,     // Creative & Marketing edit allowed
+    canEditCollections: true,         // Creative & Marketing can create/edit/delete collections
     canViewCategories: true,
-    canEditCategories: true,      // Creative & Marketing edit allowed
-    canViewDiscounts: true,        // View allowed
+    canEditCategories: true,          // Creative & Marketing can create/edit/delete categories
+    canViewDiscounts: true,           // VIEW ONLY
     canCreateDiscounts: false,
     canEditDiscounts: false,
-    canViewSales: true,            // View allowed
+    canViewSales: true,               // Allowed to view sales
     canExportSales: true,
     canViewFinancialDetails: false,
-    canViewCustomers: true,        // View allowed (PII masked)
+    canViewCustomers: true,           // VIEW ONLY (PII masked)
     canViewSensitiveCustomers: false,
     canViewSettings: false,
     canManageSettings: false,
@@ -218,12 +230,15 @@ export const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalAdminRole, RolePermissi
     canCreateProducts: false,
     canEditProducts: false,
     canEditProductContent: false,
+    canEditProductProduction: false,
     canEditProductPrice: false,
+    canPublishProducts: false,
     canDeleteProducts: false,
     canViewInventory: true,
     canEditInventory: false,
     canViewOrders: true,
     canUpdateOrderFulfilment: false,
+    canUpdateOrderPayment: false,
     canCancelOrders: false,
     canRefundOrders: false,
     canViewMedia: false,
@@ -258,12 +273,15 @@ export type PermissionString =
   | 'products.create'
   | 'products.edit'
   | 'products.edit_content'
+  | 'products.edit_production'
   | 'products.edit_price'
+  | 'products.publish'
   | 'products.delete'
   | 'inventory.view'
   | 'inventory.edit'
   | 'orders.view'
   | 'orders.update_fulfilment'
+  | 'orders.update_payment'
   | 'orders.cancel'
   | 'orders.refund'
   | 'media.view'
@@ -297,12 +315,15 @@ const PERMISSION_STRING_MAP: Record<string, keyof RolePermissions> = {
   'products.create': 'canCreateProducts',
   'products.edit': 'canEditProducts',
   'products.edit_content': 'canEditProductContent',
+  'products.edit_production': 'canEditProductProduction',
   'products.edit_price': 'canEditProductPrice',
+  'products.publish': 'canPublishProducts',
   'products.delete': 'canDeleteProducts',
   'inventory.view': 'canViewInventory',
   'inventory.edit': 'canEditInventory',
   'orders.view': 'canViewOrders',
   'orders.update_fulfilment': 'canUpdateOrderFulfilment',
+  'orders.update_payment': 'canUpdateOrderPayment',
   'orders.cancel': 'canCancelOrders',
   'orders.refund': 'canRefundOrders',
   'media.view': 'canViewMedia',
@@ -335,12 +356,12 @@ const PERMISSION_STRING_MAP: Record<string, keyof RolePermissions> = {
  * Universal Authorization helper for checking role or user permission
  */
 export function hasPermission(
-  roleOrUser: string | AdminUser | null | undefined,
+  roleOrUser: string | AdminUser | { role: CanonicalAdminRole | string; isActive?: boolean } | null | undefined,
   permission: PermissionString
 ): boolean {
   if (!roleOrUser) return false;
   
-  // If user object passed with isActive === false, immediately deny
+  // If user/admin object passed with isActive === false, immediately deny
   if (typeof roleOrUser === 'object') {
     if (roleOrUser.isActive === false) return false;
     const normalizedRole = normalizeAdminRole(roleOrUser.role);
@@ -356,7 +377,7 @@ export function hasPermission(
 /**
  * Super Admin check helper
  */
-export function isSuperAdmin(roleOrUser: string | AdminUser | null | undefined): boolean {
+export function isSuperAdmin(roleOrUser: string | AdminUser | { role: CanonicalAdminRole | string; isActive?: boolean } | null | undefined): boolean {
   if (!roleOrUser) return false;
   if (typeof roleOrUser === 'object') {
     if (roleOrUser.isActive === false) return false;

@@ -5,6 +5,7 @@ import { uploadMediaToSupabaseBucket, getProductMediaUrl } from './media';
 import { updateVariantStockInSupabase, adjustVariantStockInSupabase, StockUpdateResult } from './inventory';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { recordAuditLog } from './audit';
+import { getClientAuthHeaders } from './client-auth-headers';
 
 /**
  * Safely parses Supabase database & RLS error codes into human-readable messages
@@ -392,6 +393,75 @@ export async function fetchSupabaseProductBySlug(slug: string): Promise<ProductI
  * NOTE: profit_per_unit and profit_margin are GENERATED ALWAYS columns and NOT included in payload.
  */
 export async function createSupabaseProduct(data: Partial<ProductItem>): Promise<{ product: ProductItem | null; error: string | null }> {
+  // 1. Browser environment: Route through authorized admin API
+  if (typeof window !== 'undefined') {
+    try {
+      // Pre-upload any file objects
+      const processedImages = [];
+      if (data.images && data.images.length > 0) {
+        for (let idx = 0; idx < data.images.length; idx++) {
+          const m = data.images[idx];
+          let storagePath = m.url;
+          let mediaType = m.role || 'front';
+          if (mediaType === 'main') mediaType = 'front';
+          if (mediaType === 'gallery') mediaType = 'detail';
+
+          if ((m as any).file instanceof File) {
+            const file = (m as any).file as File;
+            const safeFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+            const uploadPath = `products/temp/${mediaType}/${safeFileName}`;
+
+            const uploadRes = await uploadMediaToSupabaseBucket(file, uploadPath);
+            if (uploadRes.success && uploadRes.storagePath) {
+              storagePath = uploadRes.storagePath;
+            }
+          } else if (m.url && m.url.startsWith('data:')) {
+            const blob = dataUrlToBlob(m.url);
+            if (blob) {
+              const safeFileName = `${Date.now()}_img_${idx}.png`;
+              const uploadPath = `products/temp/${mediaType}/${safeFileName}`;
+              const file = new File([blob], safeFileName, { type: 'image/png' });
+              const uploadRes = await uploadMediaToSupabaseBucket(file, uploadPath);
+              if (uploadRes.success && uploadRes.storagePath) {
+                storagePath = uploadRes.storagePath;
+              }
+            }
+          }
+
+          processedImages.push({
+            ...m,
+            url: storagePath,
+          });
+        }
+      }
+
+      const payload = {
+        ...data,
+        images: processedImages.length > 0 ? processedImages : data.images,
+      };
+
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch('/api/admin/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { product: null, error: json.error || `Error ${res.status}: Product creation failed` };
+      }
+
+      return { product: json.product, error: null };
+    } catch (err: any) {
+      return { product: null, error: err?.message || 'Network error creating product' };
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) {
     return { product: null, error: 'Supabase client is not configured.' };
@@ -550,6 +620,75 @@ export async function createSupabaseProduct(data: Partial<ProductItem>): Promise
  * NOTE: profit_per_unit and profit_margin are GENERATED ALWAYS columns and NOT included in payload.
  */
 export async function updateSupabaseProduct(id: string, updates: Partial<ProductItem>): Promise<{ product: ProductItem | null; error: string | null }> {
+  // 1. Browser environment: Route through authorized admin API
+  if (typeof window !== 'undefined') {
+    try {
+      const processedImages = [];
+      if (updates.images && updates.images.length > 0) {
+        for (let idx = 0; idx < updates.images.length; idx++) {
+          const m = updates.images[idx];
+          let storagePath = m.url;
+          let mediaType = m.role || 'front';
+          if (mediaType === 'main') mediaType = 'front';
+          if (mediaType === 'gallery') mediaType = 'detail';
+
+          if ((m as any).file instanceof File) {
+            const file = (m as any).file as File;
+            const safeFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+            const uploadPath = `products/${id}/${mediaType}/${safeFileName}`;
+
+            const uploadRes = await uploadMediaToSupabaseBucket(file, uploadPath);
+            if (uploadRes.success && uploadRes.storagePath) {
+              storagePath = uploadRes.storagePath;
+            }
+          } else if (m.url && m.url.startsWith('data:')) {
+            const blob = dataUrlToBlob(m.url);
+            if (blob) {
+              const safeFileName = `${Date.now()}_img_${idx}.png`;
+              const uploadPath = `products/${id}/${mediaType}/${safeFileName}`;
+              const file = new File([blob], safeFileName, { type: 'image/png' });
+              const uploadRes = await uploadMediaToSupabaseBucket(file, uploadPath);
+              if (uploadRes.success && uploadRes.storagePath) {
+                storagePath = uploadRes.storagePath;
+              }
+            }
+          }
+
+          processedImages.push({
+            ...m,
+            url: storagePath,
+          });
+        }
+      }
+
+      const payload = {
+        ...updates,
+        id,
+        images: processedImages.length > 0 ? processedImages : updates.images,
+      };
+
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch('/api/admin/products', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { product: null, error: json.error || `Error ${res.status}: Product update failed` };
+      }
+
+      return { product: json.product, error: null };
+    } catch (err: any) {
+      return { product: null, error: err?.message || 'Network error updating product' };
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) {
     return { product: null, error: 'Supabase client is not configured.' };
@@ -785,6 +924,22 @@ export async function unpublishSupabaseProduct(id: string): Promise<ProductItem 
  * Delete product from Supabase
  */
 export async function deleteSupabaseProduct(id: string): Promise<boolean> {
+  if (typeof window !== 'undefined') {
+    try {
+      const authHeaders = await getClientAuthHeaders();
+      const res = await fetch(`/api/admin/products?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: {
+          ...authHeaders,
+        },
+        credentials: 'include',
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   const client = getSupabaseClient();
   if (!client) return false;
 

@@ -70,6 +70,9 @@ export async function PATCH(request: NextRequest) {
     return authCheck.errorResponse;
   }
 
+  const userRole = authCheck.admin.role;
+  const isSuperAdmin = userRole === 'super_admin';
+
   const serviceClient = createServiceRoleSupabaseClient();
   if (!serviceClient) {
     return NextResponse.json(
@@ -80,15 +83,30 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { orderId, payment_status, order_status, fulfilment_status } = body;
+    const { orderId, payment_status, order_status, fulfilment_status, refund, cancel, payment_provider, payfast_payment_id, paid_at, total, subtotal, shipping_amount } = body;
 
     if (!orderId) {
       return NextResponse.json({ success: false, error: 'Order ID is required.' }, { status: 400 });
     }
 
+    // Role-based field enforcement: Operations & other non-super-admins cannot modify payment status, financial totals, refund, or cancel state
+    if (!isSuperAdmin) {
+      if (payment_status !== undefined || refund !== undefined || cancel !== undefined || payment_provider !== undefined || payfast_payment_id !== undefined || paid_at !== undefined || total !== undefined || subtotal !== undefined || shipping_amount !== undefined) {
+        return NextResponse.json({
+          success: false,
+          error: 'Forbidden: Restricted role. Operations partners are authorized to update fulfilment status only. Modifying payment status, financials, refunds, or cancellations requires Super Admin permissions.'
+        }, { status: 403 });
+      }
+    }
+
+    const payload: { payment_status?: string; order_status?: string; fulfilment_status?: string } = {};
+    if (fulfilment_status) payload.fulfilment_status = fulfilment_status;
+    if (order_status) payload.order_status = order_status;
+    if (isSuperAdmin && payment_status) payload.payment_status = payment_status;
+
     const result = await updateOrderStatusInSupabase(
       orderId,
-      { payment_status, order_status, fulfilment_status },
+      payload,
       serviceClient
     );
 
