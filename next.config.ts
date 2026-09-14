@@ -1,8 +1,12 @@
 import type {NextConfig} from 'next';
 
-// Build-time validation printout (Never prints values)
-console.log(`NEXT_PUBLIC_SUPABASE_URL PRESENT: ${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'YES' : 'NO'}`);
-console.log(`NEXT_PUBLIC_SUPABASE_ANON_KEY PRESENT: ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'YES' : 'NO'}`);
+// Safe build-time public environment resolution (Never uses service-role or secret keys)
+const resolvedPublicSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+const resolvedPublicSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
+// Build-time validation printout (Never prints actual values)
+console.log(`PUBLIC_SUPABASE_URL_RESOLVED: ${resolvedPublicSupabaseUrl ? 'YES' : 'NO'}`);
+console.log(`PUBLIC_SUPABASE_ANON_KEY_RESOLVED: ${resolvedPublicSupabaseAnonKey ? 'YES' : 'NO'}`);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -44,8 +48,8 @@ const nextConfig: NextConfig = {
   },
 
   env: {
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    NEXT_PUBLIC_SUPABASE_URL: resolvedPublicSupabaseUrl,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: resolvedPublicSupabaseAnonKey,
     NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
   },
 
