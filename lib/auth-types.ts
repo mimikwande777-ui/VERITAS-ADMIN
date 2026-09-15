@@ -165,7 +165,7 @@ export const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalAdminRole, RolePermissi
     canRefundOrders: false,           // Super Admin only
     canViewMedia: true,
     canUploadMedia: true,             // Allowed to upload media
-    canDeleteMedia: true,
+    canDeleteMedia: false,            // Super Admin only
     canViewCollections: true,         // VIEW ONLY
     canEditCollections: false,        // Cannot edit/create/delete collections
     canViewCategories: true,          // VIEW ONLY
@@ -204,7 +204,7 @@ export const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalAdminRole, RolePermissi
     canRefundOrders: false,
     canViewMedia: true,
     canUploadMedia: true,             // Can upload media
-    canDeleteMedia: true,
+    canDeleteMedia: false,            // Super Admin only
     canViewCollections: true,
     canEditCollections: true,         // Creative & Marketing can create/edit/delete collections
     canViewCategories: true,

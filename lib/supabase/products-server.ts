@@ -5,58 +5,68 @@ import { getProductMediaUrl } from './media';
 import { parseSupabaseError } from './products';
 
 /**
- * Resolves or creates a category record in public.categories
+ * Validates and resolves an existing category record in public.categories
+ * Note: Does NOT auto-create categories. Non-existent categories produce a validation error.
  */
-async function resolveCategoryId(client: SupabaseClient, categoryName?: string): Promise<string | null> {
-  if (!categoryName) return null;
-  const slug = categoryName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+async function resolveCategoryId(client: SupabaseClient, categoryNameOrId?: string): Promise<{ id: string | null; error?: string }> {
+  if (!categoryNameOrId) return { id: null };
+  const trimmed = categoryNameOrId.trim();
+  const slug = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
 
   try {
-    const { data: existing } = await client
-      .from('categories')
-      .select('id')
-      .or(`name.ilike.${categoryName},slug.eq.${slug}`)
-      .maybeSingle();
+    let query = client.from('categories').select('id, name');
+    if (isUuid) {
+      query = query.or(`id.eq.${trimmed},name.ilike.${trimmed},slug.eq.${slug}`);
+    } else {
+      query = query.or(`name.ilike.${trimmed},slug.eq.${slug}`);
+    }
 
-    if (existing?.id) return existing.id;
+    const { data: existing } = await query.maybeSingle();
 
-    const { data: created } = await client
-      .from('categories')
-      .insert({ name: categoryName, slug })
-      .select('id')
-      .single();
+    if (existing?.id) {
+      return { id: existing.id };
+    }
 
-    return created?.id || null;
-  } catch (err) {
-    return null;
+    return { 
+      id: null, 
+      error: `Category "${trimmed}" does not exist. Categories must be created in Category management before being assigned to products.` 
+    };
+  } catch (err: any) {
+    return { id: null, error: `Failed to resolve category: ${err?.message || 'Database error'}` };
   }
 }
 
 /**
- * Resolves or creates a collection record in public.collections
+ * Validates and resolves an existing collection record in public.collections
+ * Note: Does NOT auto-create collections. Non-existent collections produce a validation error.
  */
-async function resolveCollectionId(client: SupabaseClient, collectionName?: string): Promise<string | null> {
-  if (!collectionName) return null;
-  const slug = collectionName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+async function resolveCollectionId(client: SupabaseClient, collectionNameOrId?: string): Promise<{ id: string | null; error?: string }> {
+  if (!collectionNameOrId) return { id: null };
+  const trimmed = collectionNameOrId.trim();
+  const slug = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
 
   try {
-    const { data: existing } = await client
-      .from('collections')
-      .select('id')
-      .or(`name.ilike.${collectionName},slug.eq.${slug}`)
-      .maybeSingle();
+    let query = client.from('collections').select('id, name');
+    if (isUuid) {
+      query = query.or(`id.eq.${trimmed},name.ilike.${trimmed},slug.eq.${slug}`);
+    } else {
+      query = query.or(`name.ilike.${trimmed},slug.eq.${slug}`);
+    }
 
-    if (existing?.id) return existing.id;
+    const { data: existing } = await query.maybeSingle();
 
-    const { data: created } = await client
-      .from('collections')
-      .insert({ name: collectionName, slug, is_active: true })
-      .select('id')
-      .single();
+    if (existing?.id) {
+      return { id: existing.id };
+    }
 
-    return created?.id || null;
-  } catch (err) {
-    return null;
+    return { 
+      id: null, 
+      error: `Collection "${trimmed}" does not exist. Collections must be created in Collection management before being assigned to products.` 
+    };
+  } catch (err: any) {
+    return { id: null, error: `Failed to resolve collection: ${err?.message || 'Database error'}` };
   }
 }
 
@@ -162,8 +172,21 @@ export async function serverCreateSupabaseProduct(data: Partial<ProductItem>, cl
     const costPrice = Number(data.costPrice) || 0;
     const statusLower = (data.status?.toLowerCase() as any) || 'draft';
 
-    const categoryId = await resolveCategoryId(client, data.category);
-    const collectionId = await resolveCollectionId(client, data.collection);
+    const categoryTarget = (data as any).categoryId || (data as any).category_id || data.category;
+    const collectionTarget = (data as any).collectionId || (data as any).collection_id || data.collection;
+
+    const categoryRes = await resolveCategoryId(client, categoryTarget);
+    if (categoryRes.error) {
+      return { product: null, error: categoryRes.error };
+    }
+
+    const collectionRes = await resolveCollectionId(client, collectionTarget);
+    if (collectionRes.error) {
+      return { product: null, error: collectionRes.error };
+    }
+
+    const categoryId = categoryRes.id;
+    const collectionId = collectionRes.id;
 
     const generatedSlug = data.slug || (data.name ? data.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : `product-${Date.now()}`);
 
@@ -271,14 +294,23 @@ export async function serverUpdateSupabaseProduct(
     if (updates.published !== undefined) patch.published = updates.published;
     if (updates.featured !== undefined) patch.featured = updates.featured;
 
-    if (updates.category) {
-      const categoryId = await resolveCategoryId(client, updates.category);
-      if (categoryId) patch.category_id = categoryId;
-      patch.product_type = updates.category;
+    const categoryTarget = (updates as any).categoryId || (updates as any).category_id || updates.category;
+    if (categoryTarget) {
+      const categoryRes = await resolveCategoryId(client, categoryTarget);
+      if (categoryRes.error) {
+        return { product: null, error: categoryRes.error };
+      }
+      if (categoryRes.id) patch.category_id = categoryRes.id;
+      if (updates.category) patch.product_type = updates.category;
     }
-    if (updates.collection) {
-      const collectionId = await resolveCollectionId(client, updates.collection);
-      if (collectionId) patch.collection_id = collectionId;
+
+    const collectionTarget = (updates as any).collectionId || (updates as any).collection_id || updates.collection;
+    if (collectionTarget) {
+      const collectionRes = await resolveCollectionId(client, collectionTarget);
+      if (collectionRes.error) {
+        return { product: null, error: collectionRes.error };
+      }
+      if (collectionRes.id) patch.collection_id = collectionRes.id;
     }
 
     const { error: prodError } = await client.from('products').update(patch).eq('id', id);

@@ -4,15 +4,12 @@
 --
 -- Objectives:
 --   1. Enforce strict server-side & database-level authorization boundaries
---   2. Eliminate broad legacy manager/admin client-side table writes
---   3. Super Admin retains exclusive rights to product pricing, publishing, deletion,
---      discounts, order financial modifications, and system security
---   4. Operations partner restricted to product content, production specs, variant inventory,
---      fulfilment updates, and media uploads
---   5. Creative & Marketing partner restricted to product content, collections,
---      categories, and media uploads (NO pricing, NO inventory editing, NO fulfilment)
---   6. Finance partner is read-only across catalog, sales, and financials
---   7. Zero disruption to public storefront catalog browsing and guest checkout
+--   2. Direct partner table writes are removed; all partner mutations must pass
+--      through validated /api/admin/* routes using the service-role client
+--   3. Super Admin retains direct database maintenance capabilities
+--   4. Storage bucket 'product-media' allows uploads for Super Admin, Operations,
+--      and Marketing; Deletion and Updates are restricted to Super Admin only
+--   5. Zero disruption to public storefront catalog browsing and guest checkout
 -- ==============================================================================
 
 -- ------------------------------------------------------------------------------
@@ -100,19 +97,20 @@ AS $$
 $$;
 
 -- ------------------------------------------------------------------------------
--- 2. TIGHTEN ROW LEVEL SECURITY POLICIES ON PRODUCTS
+-- 2. PRODUCTS TABLE POLICIES
 -- ------------------------------------------------------------------------------
 
--- Drop broad/legacy write policies
 DROP POLICY IF EXISTS "Admins full management of products" ON public.products;
 DROP POLICY IF EXISTS "Admins can insert products" ON public.products;
 DROP POLICY IF EXISTS "Admins can update products" ON public.products;
 DROP POLICY IF EXISTS "Admins can delete products" ON public.products;
 DROP POLICY IF EXISTS "Admin write access for products" ON public.products;
 DROP POLICY IF EXISTS "Admins full access to products" ON public.products;
+DROP POLICY IF EXISTS "Super Admins can insert products" ON public.products;
+DROP POLICY IF EXISTS "Super Admins can update products" ON public.products;
+DROP POLICY IF EXISTS "Super Admins can delete products" ON public.products;
 
--- Products: SELECT
--- Public storefront can view active published products
+-- Products: SELECT (Public storefront can view active published products; admins can view all)
 DROP POLICY IF EXISTS "Public can view active published products" ON public.products;
 CREATE POLICY "Public can view active published products"
     ON public.products FOR SELECT
@@ -121,33 +119,34 @@ CREATE POLICY "Public can view active published products"
       (status = 'active' AND published IS TRUE) OR public.is_admin()
     );
 
--- Products: INSERT (Super Admin only for direct client queries; API routes use service role)
+-- Products: Direct writes (Super Admin only; Partner mutations go through /api/admin/products)
 CREATE POLICY "Super Admins can insert products"
     ON public.products FOR INSERT
     TO authenticated
     WITH CHECK (public.is_super_admin());
 
--- Products: UPDATE (Super Admin only for direct client queries)
 CREATE POLICY "Super Admins can update products"
     ON public.products FOR UPDATE
     TO authenticated
     USING (public.is_super_admin())
     WITH CHECK (public.is_super_admin());
 
--- Products: DELETE (Super Admin only)
 CREATE POLICY "Super Admins can delete products"
     ON public.products FOR DELETE
     TO authenticated
     USING (public.is_super_admin());
 
 -- ------------------------------------------------------------------------------
--- 3. TIGHTEN ROW LEVEL SECURITY POLICIES ON PRODUCT VARIANTS & COLOURS
+-- 3. PRODUCT VARIANTS & COLOURS TABLE POLICIES
 -- ------------------------------------------------------------------------------
 
 DROP POLICY IF EXISTS "Admins full management of variants" ON public.product_variants;
 DROP POLICY IF EXISTS "Admins can insert variants" ON public.product_variants;
 DROP POLICY IF EXISTS "Admins can update variants" ON public.product_variants;
 DROP POLICY IF EXISTS "Admins can delete variants" ON public.product_variants;
+DROP POLICY IF EXISTS "Super Admins and Operations can update variants" ON public.product_variants;
+DROP POLICY IF EXISTS "Super Admins can insert variants" ON public.product_variants;
+DROP POLICY IF EXISTS "Super Admins can delete variants" ON public.product_variants;
 
 DROP POLICY IF EXISTS "Public can view variants of active published products" ON public.product_variants;
 CREATE POLICY "Public can view variants of active published products"
@@ -161,15 +160,15 @@ CREATE POLICY "Public can view variants of active published products"
       )
     );
 
-CREATE POLICY "Super Admins and Operations can update variants"
-    ON public.product_variants FOR UPDATE
-    TO authenticated
-    USING (public.can_manage_operations())
-    WITH CHECK (public.can_manage_operations());
-
 CREATE POLICY "Super Admins can insert variants"
     ON public.product_variants FOR INSERT
     TO authenticated
+    WITH CHECK (public.is_super_admin());
+
+CREATE POLICY "Super Admins can update variants"
+    ON public.product_variants FOR UPDATE
+    TO authenticated
+    USING (public.is_super_admin())
     WITH CHECK (public.is_super_admin());
 
 CREATE POLICY "Super Admins can delete variants"
@@ -182,6 +181,9 @@ DROP POLICY IF EXISTS "Admins full management of colours" ON public.product_colo
 DROP POLICY IF EXISTS "Admins can insert colours" ON public.product_colours;
 DROP POLICY IF EXISTS "Admins can update colours" ON public.product_colours;
 DROP POLICY IF EXISTS "Admins can delete colours" ON public.product_colours;
+DROP POLICY IF EXISTS "Super Admins can insert colours" ON public.product_colours;
+DROP POLICY IF EXISTS "Super Admins can update colours" ON public.product_colours;
+DROP POLICY IF EXISTS "Super Admins can delete colours" ON public.product_colours;
 
 DROP POLICY IF EXISTS "Public can view colours of active published products" ON public.product_colours;
 CREATE POLICY "Public can view colours of active published products"
@@ -212,7 +214,7 @@ CREATE POLICY "Super Admins can delete colours"
     USING (public.is_super_admin());
 
 -- ------------------------------------------------------------------------------
--- 4. TIGHTEN ROW LEVEL SECURITY POLICIES ON COLLECTIONS & CATEGORIES
+-- 4. COLLECTIONS & CATEGORIES TABLE POLICIES
 -- ------------------------------------------------------------------------------
 
 -- Collections
@@ -220,6 +222,9 @@ DROP POLICY IF EXISTS "Admins full management of collections" ON public.collecti
 DROP POLICY IF EXISTS "Admins can insert collections" ON public.collections;
 DROP POLICY IF EXISTS "Admins can update collections" ON public.collections;
 DROP POLICY IF EXISTS "Admins can delete collections" ON public.collections;
+DROP POLICY IF EXISTS "Marketing and Super Admins can insert collections" ON public.collections;
+DROP POLICY IF EXISTS "Marketing and Super Admins can update collections" ON public.collections;
+DROP POLICY IF EXISTS "Marketing and Super Admins can delete collections" ON public.collections;
 
 DROP POLICY IF EXISTS "Public can view active collections" ON public.collections;
 CREATE POLICY "Public can view active collections"
@@ -227,27 +232,30 @@ CREATE POLICY "Public can view active collections"
     TO anon, authenticated
     USING (is_active IS TRUE OR public.is_admin());
 
-CREATE POLICY "Marketing and Super Admins can insert collections"
+CREATE POLICY "Super Admins can insert collections"
     ON public.collections FOR INSERT
     TO authenticated
-    WITH CHECK (public.can_manage_marketing());
+    WITH CHECK (public.is_super_admin());
 
-CREATE POLICY "Marketing and Super Admins can update collections"
+CREATE POLICY "Super Admins can update collections"
     ON public.collections FOR UPDATE
     TO authenticated
-    USING (public.can_manage_marketing())
-    WITH CHECK (public.can_manage_marketing());
+    USING (public.is_super_admin())
+    WITH CHECK (public.is_super_admin());
 
-CREATE POLICY "Marketing and Super Admins can delete collections"
+CREATE POLICY "Super Admins can delete collections"
     ON public.collections FOR DELETE
     TO authenticated
-    USING (public.can_manage_marketing());
+    USING (public.is_super_admin());
 
 -- Categories
 DROP POLICY IF EXISTS "Admins full management of categories" ON public.categories;
 DROP POLICY IF EXISTS "Admins can insert categories" ON public.categories;
 DROP POLICY IF EXISTS "Admins can update categories" ON public.categories;
 DROP POLICY IF EXISTS "Admins can delete categories" ON public.categories;
+DROP POLICY IF EXISTS "Marketing and Super Admins can insert categories" ON public.categories;
+DROP POLICY IF EXISTS "Marketing and Super Admins can update categories" ON public.categories;
+DROP POLICY IF EXISTS "Marketing and Super Admins can delete categories" ON public.categories;
 
 DROP POLICY IF EXISTS "Public can view catalog categories" ON public.categories;
 CREATE POLICY "Public can view catalog categories"
@@ -255,51 +263,49 @@ CREATE POLICY "Public can view catalog categories"
     TO anon, authenticated
     USING (true);
 
-CREATE POLICY "Marketing and Super Admins can insert categories"
+CREATE POLICY "Super Admins can insert categories"
     ON public.categories FOR INSERT
     TO authenticated
-    WITH CHECK (public.can_manage_marketing());
+    WITH CHECK (public.is_super_admin());
 
-CREATE POLICY "Marketing and Super Admins can update categories"
+CREATE POLICY "Super Admins can update categories"
     ON public.categories FOR UPDATE
     TO authenticated
-    USING (public.can_manage_marketing())
-    WITH CHECK (public.can_manage_marketing());
+    USING (public.is_super_admin())
+    WITH CHECK (public.is_super_admin());
 
-CREATE POLICY "Marketing and Super Admins can delete categories"
+CREATE POLICY "Super Admins can delete categories"
     ON public.categories FOR DELETE
     TO authenticated
-    USING (public.can_manage_marketing());
+    USING (public.is_super_admin());
 
 -- ------------------------------------------------------------------------------
--- 5. TIGHTEN ROW LEVEL SECURITY POLICIES ON ORDERS
+-- 5. ORDERS TABLE POLICIES
 -- ------------------------------------------------------------------------------
 
 DROP POLICY IF EXISTS "Admins can update orders" ON public.orders;
 DROP POLICY IF EXISTS "Admins full management of orders" ON public.orders;
+DROP POLICY IF EXISTS "Operations can update order fulfilment" ON public.orders;
+DROP POLICY IF EXISTS "Super Admins can update orders" ON public.orders;
 
--- Super Admin can manage all order updates (financials, cancellation, refunds)
+-- Direct mutations restricted to Super Admin; Partner fulfilment updates go through /api/admin/orders
 CREATE POLICY "Super Admins can update orders"
     ON public.orders FOR UPDATE
     TO authenticated
     USING (public.is_super_admin())
     WITH CHECK (public.is_super_admin());
 
--- Operations can update orders (for fulfilment status only; sensitive columns enforced via API layer)
-CREATE POLICY "Operations can update order fulfilment"
-    ON public.orders FOR UPDATE
-    TO authenticated
-    USING (public.can_manage_operations())
-    WITH CHECK (public.can_manage_operations());
-
 -- ------------------------------------------------------------------------------
--- 6. TIGHTEN ROW LEVEL SECURITY POLICIES ON MEDIA
+-- 6. PRODUCT MEDIA TABLE POLICIES
 -- ------------------------------------------------------------------------------
 
 DROP POLICY IF EXISTS "Admins full management of media" ON public.product_media;
 DROP POLICY IF EXISTS "Admins can insert media" ON public.product_media;
 DROP POLICY IF EXISTS "Admins can update media" ON public.product_media;
 DROP POLICY IF EXISTS "Admins can delete media" ON public.product_media;
+DROP POLICY IF EXISTS "Admins can insert product media" ON public.product_media;
+DROP POLICY IF EXISTS "Admins can update product media" ON public.product_media;
+DROP POLICY IF EXISTS "Admins can delete product media" ON public.product_media;
 
 DROP POLICY IF EXISTS "Public can view media of active published products" ON public.product_media;
 CREATE POLICY "Public can view media of active published products"
@@ -313,18 +319,107 @@ CREATE POLICY "Public can view media of active published products"
       )
     );
 
-CREATE POLICY "Admins can insert product media"
+CREATE POLICY "Super Admins can insert product media"
     ON public.product_media FOR INSERT
     TO authenticated
-    WITH CHECK (public.has_admin_role('operations') OR public.has_admin_role('marketing') OR public.is_super_admin());
+    WITH CHECK (public.is_super_admin());
 
-CREATE POLICY "Admins can update product media"
+CREATE POLICY "Super Admins can update product media"
     ON public.product_media FOR UPDATE
     TO authenticated
-    USING (public.has_admin_role('operations') OR public.has_admin_role('marketing') OR public.is_super_admin())
-    WITH CHECK (public.has_admin_role('operations') OR public.has_admin_role('marketing') OR public.is_super_admin());
+    USING (public.is_super_admin())
+    WITH CHECK (public.is_super_admin());
 
-CREATE POLICY "Admins can delete product media"
+CREATE POLICY "Super Admins can delete product media"
     ON public.product_media FOR DELETE
     TO authenticated
-    USING (public.has_admin_role('operations') OR public.has_admin_role('marketing') OR public.is_super_admin());
+    USING (public.is_super_admin());
+
+-- ------------------------------------------------------------------------------
+-- 7. DISCOUNTS TABLE POLICIES
+-- ------------------------------------------------------------------------------
+
+DROP POLICY IF EXISTS "Admins full management of discounts" ON public.discounts;
+DROP POLICY IF EXISTS "Super Admins can insert discounts" ON public.discounts;
+DROP POLICY IF EXISTS "Super Admins can update discounts" ON public.discounts;
+DROP POLICY IF EXISTS "Super Admins can delete discounts" ON public.discounts;
+
+CREATE POLICY "Super Admins can insert discounts"
+    ON public.discounts FOR INSERT
+    TO authenticated
+    WITH CHECK (public.is_super_admin());
+
+CREATE POLICY "Super Admins can update discounts"
+    ON public.discounts FOR UPDATE
+    TO authenticated
+    USING (public.is_super_admin())
+    WITH CHECK (public.is_super_admin());
+
+CREATE POLICY "Super Admins can delete discounts"
+    ON public.discounts FOR DELETE
+    TO authenticated
+    USING (public.is_super_admin());
+
+-- ------------------------------------------------------------------------------
+-- 8. ADMIN USERS TABLE POLICIES
+-- ------------------------------------------------------------------------------
+
+DROP POLICY IF EXISTS "Admins can view admin_users" ON public.admin_users;
+DROP POLICY IF EXISTS "Super admin can manage admin_users" ON public.admin_users;
+
+CREATE POLICY "Admins can view admin_users"
+    ON public.admin_users FOR SELECT
+    TO authenticated
+    USING (public.is_admin());
+
+CREATE POLICY "Super Admins can manage admin_users"
+    ON public.admin_users FOR ALL
+    TO authenticated
+    USING (public.is_super_admin())
+    WITH CHECK (public.is_super_admin());
+
+-- ------------------------------------------------------------------------------
+-- 9. SUPABASE STORAGE (product-media BUCKET) POLICIES
+-- ------------------------------------------------------------------------------
+
+-- Ensure bucket exists and is public for image reads
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('product-media', 'product-media', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+-- Storage: Public Read
+DROP POLICY IF EXISTS "Public can view product media objects" ON storage.objects;
+CREATE POLICY "Public can view product media objects"
+    ON storage.objects FOR SELECT
+    TO anon, authenticated
+    USING (bucket_id = 'product-media');
+
+-- Storage: Insert (Upload) allowed for Super Admin, Operations, and Marketing
+DROP POLICY IF EXISTS "Partners can upload product media objects" ON storage.objects;
+DROP POLICY IF EXISTS "Admins can upload product media" ON storage.objects;
+CREATE POLICY "Partners can upload product media objects"
+    ON storage.objects FOR INSERT
+    TO authenticated
+    WITH CHECK (
+      bucket_id = 'product-media' AND (
+        public.is_super_admin() OR
+        public.has_admin_role('operations') OR
+        public.has_admin_role('marketing')
+      )
+    );
+
+-- Storage: Update restricted to Super Admin only
+DROP POLICY IF EXISTS "Super Admins can update product media objects" ON storage.objects;
+CREATE POLICY "Super Admins can update product media objects"
+    ON storage.objects FOR UPDATE
+    TO authenticated
+    USING (bucket_id = 'product-media' AND public.is_super_admin())
+    WITH CHECK (bucket_id = 'product-media' AND public.is_super_admin());
+
+-- Storage: Delete restricted to Super Admin only
+DROP POLICY IF EXISTS "Super Admins can delete product media objects" ON storage.objects;
+DROP POLICY IF EXISTS "Admins can delete product media" ON storage.objects;
+CREATE POLICY "Super Admins can delete product media objects"
+    ON storage.objects FOR DELETE
+    TO authenticated
+    USING (bucket_id = 'product-media' AND public.is_super_admin());

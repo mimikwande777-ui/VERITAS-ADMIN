@@ -61,7 +61,7 @@ export async function uploadMediaToSupabaseBucket(
     
     const { data, error } = await client.storage
       .from('product-media')
-      .upload(storagePath, file, { upsert: true });
+      .upload(storagePath, file, { upsert: false });
 
     if (error || !data) {
       console.error('Supabase Storage upload error:', error);

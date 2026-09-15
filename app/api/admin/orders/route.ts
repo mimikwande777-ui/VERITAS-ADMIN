@@ -83,29 +83,79 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { orderId, payment_status, order_status, fulfilment_status, refund, cancel, payment_provider, payfast_payment_id, paid_at, total, subtotal, shipping_amount } = body;
+    const { 
+      orderId, 
+      id, 
+      payment_status, 
+      order_status, 
+      fulfilment_status, 
+      refund, 
+      refund_status, 
+      cancel, 
+      cancellation_status, 
+      payment_provider, 
+      payfast_payment_id, 
+      paid_at, 
+      total, 
+      subtotal, 
+      shipping_amount,
+      tracking_reference,
+      fulfilment_notes
+    } = body;
 
-    if (!orderId) {
+    const targetOrderId = orderId || id;
+    if (!targetOrderId) {
       return NextResponse.json({ success: false, error: 'Order ID is required.' }, { status: 400 });
     }
 
-    // Role-based field enforcement: Operations & other non-super-admins cannot modify payment status, financial totals, refund, or cancel state
+    // Role-based field enforcement: Operations & other non-super-admins can ONLY update fulfilment fields
     if (!isSuperAdmin) {
-      if (payment_status !== undefined || refund !== undefined || cancel !== undefined || payment_provider !== undefined || payfast_payment_id !== undefined || paid_at !== undefined || total !== undefined || subtotal !== undefined || shipping_amount !== undefined) {
+      const forbiddenFields = [
+        'order_status',
+        'payment_status',
+        'payment_provider',
+        'payfast_payment_id',
+        'paid_at',
+        'total',
+        'subtotal',
+        'shipping_amount',
+        'refund',
+        'refund_status',
+        'cancel',
+        'cancellation_status',
+      ];
+
+      const attemptedForbidden = forbiddenFields.some(f => body[f] !== undefined);
+      if (attemptedForbidden) {
         return NextResponse.json({
           success: false,
-          error: 'Forbidden: Restricted role. Operations partners are authorized to update fulfilment status only. Modifying payment status, financials, refunds, or cancellations requires Super Admin permissions.'
+          error: 'Forbidden: Restricted role. Operations partners are authorized to update fulfilment status only. Modifying order_status, payment_status, financials, refunds, or cancellations requires Super Admin permissions.'
+        }, { status: 403 });
+      }
+
+      // Check for any arbitrary non-fulfilment fields
+      const allowedOperationsFields = new Set(['orderId', 'id', 'fulfilment_status', 'tracking_reference', 'fulfilment_notes']);
+      const unknownFields = Object.keys(body).filter(k => !allowedOperationsFields.has(k));
+      if (unknownFields.length > 0) {
+        return NextResponse.json({
+          success: false,
+          error: `Forbidden: Field '${unknownFields.join(', ')}' cannot be modified by Operations.`
         }, { status: 403 });
       }
     }
 
-    const payload: { payment_status?: string; order_status?: string; fulfilment_status?: string } = {};
-    if (fulfilment_status) payload.fulfilment_status = fulfilment_status;
-    if (order_status) payload.order_status = order_status;
-    if (isSuperAdmin && payment_status) payload.payment_status = payment_status;
+    const payload: { payment_status?: string; order_status?: string; fulfilment_status?: string; tracking_reference?: string; fulfilment_notes?: string } = {};
+    if (fulfilment_status !== undefined) payload.fulfilment_status = fulfilment_status;
+    if (tracking_reference !== undefined) payload.tracking_reference = tracking_reference;
+    if (fulfilment_notes !== undefined) payload.fulfilment_notes = fulfilment_notes;
+
+    if (isSuperAdmin) {
+      if (order_status !== undefined) payload.order_status = order_status;
+      if (payment_status !== undefined) payload.payment_status = payment_status;
+    }
 
     const result = await updateOrderStatusInSupabase(
-      orderId,
+      targetOrderId,
       payload,
       serviceClient
     );

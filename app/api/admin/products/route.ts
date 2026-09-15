@@ -35,12 +35,22 @@ const PRICE_FIELDS = new Set([
 ]);
 
 const PUBLISH_FIELDS = new Set([
-  'published', 'status', 'active', 'is_active'
+  'published', 'status', 'active', 'is_active', 'featured'
 ]);
 
 const STOCK_FIELDS = new Set([
   'stock_quantity', 'stockQuantity',
   'low_stock_threshold', 'lowStockThreshold'
+]);
+
+const ALL_ALLOWED_PRODUCT_FIELDS = new Set([
+  ...CONTENT_FIELDS,
+  ...PRODUCTION_FIELDS,
+  ...PRICE_FIELDS,
+  ...PUBLISH_FIELDS,
+  ...STOCK_FIELDS,
+  'variants',
+  'id',
 ]);
 
 export async function POST(request: NextRequest) {
@@ -54,6 +64,15 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    // Strict Field Allowlist check
+    const unknownFields = Object.keys(body).filter(k => !ALL_ALLOWED_PRODUCT_FIELDS.has(k));
+    if (unknownFields.length > 0) {
+      return NextResponse.json({
+        success: false,
+        error: `Forbidden: Unknown or invalid product field(s): ${unknownFields.join(', ')}`
+      }, { status: 400 });
+    }
+
     // Check for Price fields on creation
     const priceAttempted = Object.keys(body).some(k => PRICE_FIELDS.has(k) && body[k] !== undefined && Number(body[k]) > 0);
     if (priceAttempted && !hasPermission(admin, 'products.edit_price')) {
@@ -63,12 +82,17 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
-    // Check for Publish fields on creation
-    const publishAttempted = body.published === true || (body.status && body.status.toLowerCase() === 'active');
+    // Check for Publish / Featured fields on creation
+    const publishAttempted = body.published === true || 
+      body.featured === true || 
+      body.active === true || 
+      body.is_active === true || 
+      (body.status && body.status.toLowerCase() === 'active');
+
     if (publishAttempted && !hasPermission(admin, 'products.publish')) {
       return NextResponse.json({
         success: false,
-        error: 'Forbidden: Publishing products or setting status to ACTIVE requires products.publish permission. Products must be created as DRAFT.'
+        error: 'Forbidden: Publishing products, setting featured, or setting status to ACTIVE requires products.publish permission. Products must be created as DRAFT.'
       }, { status: 403 });
     }
 
@@ -122,6 +146,15 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing product ID' }, { status: 400 });
     }
 
+    // Strict Field Allowlist check for PATCH
+    const unknownFields = Object.keys(body).filter(k => !ALL_ALLOWED_PRODUCT_FIELDS.has(k));
+    if (unknownFields.length > 0) {
+      return NextResponse.json({
+        success: false,
+        error: `Forbidden: Unknown or invalid product mutation field(s): ${unknownFields.join(', ')}`
+      }, { status: 400 });
+    }
+
     // FIELD-LEVEL AUTHORIZATION CHECK
     // 1. Check PRICE field group
     const hasPriceFields = Object.keys(body).some(k => PRICE_FIELDS.has(k) && body[k] !== undefined) ||
@@ -136,12 +169,12 @@ export async function PATCH(request: NextRequest) {
       }, { status: 403 });
     }
 
-    // 2. Check PUBLISH field group
+    // 2. Check PUBLISH field group (includes featured, published, status, active, is_active)
     const hasPublishFields = Object.keys(body).some(k => PUBLISH_FIELDS.has(k) && body[k] !== undefined);
     if (hasPublishFields && !hasPermission(admin, 'products.publish')) {
       return NextResponse.json({
         success: false,
-        error: 'Forbidden: Publishing, unpublishing, or changing product status requires products.publish permission.'
+        error: 'Forbidden: Publishing, unpublishing, changing featured flag, or modifying product status requires products.publish permission.'
       }, { status: 403 });
     }
 
