@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for Price fields on creation
-    const priceAttempted = Object.keys(body).some(k => PRICE_FIELDS.has(k) && body[k] !== undefined && Number(body[k]) > 0);
+    const priceAttempted = Object.keys(body).some(k => PRICE_FIELDS.has(k) && body[k] !== undefined);
     if (priceAttempted && !hasPermission(admin, 'products.edit_price')) {
       return NextResponse.json({
         success: false,

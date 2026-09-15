@@ -382,21 +382,30 @@ CREATE POLICY "Super Admins can manage admin_users"
 -- 9. SUPABASE STORAGE (product-media BUCKET) POLICIES
 -- ------------------------------------------------------------------------------
 
+-- Drop exact legacy storage policies
+DROP POLICY IF EXISTS "Admins can upload product media files" ON storage.objects;
+DROP POLICY IF EXISTS "Admins can update product media files" ON storage.objects;
+DROP POLICY IF EXISTS "Admins can delete product media files" ON storage.objects;
+DROP POLICY IF EXISTS "Public can view product media files" ON storage.objects;
+DROP POLICY IF EXISTS "Public can view product media objects" ON storage.objects;
+DROP POLICY IF EXISTS "Partners can upload product media objects" ON storage.objects;
+DROP POLICY IF EXISTS "Admins can upload product media" ON storage.objects;
+DROP POLICY IF EXISTS "Super Admins can update product media objects" ON storage.objects;
+DROP POLICY IF EXISTS "Super Admins can delete product media objects" ON storage.objects;
+DROP POLICY IF EXISTS "Admins can delete product media" ON storage.objects;
+
 -- Ensure bucket exists and is public for image reads
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('product-media', 'product-media', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
 -- Storage: Public Read
-DROP POLICY IF EXISTS "Public can view product media objects" ON storage.objects;
 CREATE POLICY "Public can view product media objects"
     ON storage.objects FOR SELECT
     TO anon, authenticated
     USING (bucket_id = 'product-media');
 
 -- Storage: Insert (Upload) allowed for Super Admin, Operations, and Marketing
-DROP POLICY IF EXISTS "Partners can upload product media objects" ON storage.objects;
-DROP POLICY IF EXISTS "Admins can upload product media" ON storage.objects;
 CREATE POLICY "Partners can upload product media objects"
     ON storage.objects FOR INSERT
     TO authenticated
@@ -409,7 +418,6 @@ CREATE POLICY "Partners can upload product media objects"
     );
 
 -- Storage: Update restricted to Super Admin only
-DROP POLICY IF EXISTS "Super Admins can update product media objects" ON storage.objects;
 CREATE POLICY "Super Admins can update product media objects"
     ON storage.objects FOR UPDATE
     TO authenticated
@@ -417,8 +425,6 @@ CREATE POLICY "Super Admins can update product media objects"
     WITH CHECK (bucket_id = 'product-media' AND public.is_super_admin());
 
 -- Storage: Delete restricted to Super Admin only
-DROP POLICY IF EXISTS "Super Admins can delete product media objects" ON storage.objects;
-DROP POLICY IF EXISTS "Admins can delete product media" ON storage.objects;
 CREATE POLICY "Super Admins can delete product media objects"
     ON storage.objects FOR DELETE
     TO authenticated

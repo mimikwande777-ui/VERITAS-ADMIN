@@ -98,9 +98,7 @@ export async function PATCH(request: NextRequest) {
       paid_at, 
       total, 
       subtotal, 
-      shipping_amount,
-      tracking_reference,
-      fulfilment_notes
+      shipping_amount
     } = body;
 
     const targetOrderId = orderId || id;
@@ -108,7 +106,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Order ID is required.' }, { status: 400 });
     }
 
-    // Role-based field enforcement: Operations & other non-super-admins can ONLY update fulfilment fields
+    // Role-based field enforcement: Operations & other non-super-admins can ONLY update fulfilment status
     if (!isSuperAdmin) {
       const forbiddenFields = [
         'order_status',
@@ -134,7 +132,7 @@ export async function PATCH(request: NextRequest) {
       }
 
       // Check for any arbitrary non-fulfilment fields
-      const allowedOperationsFields = new Set(['orderId', 'id', 'fulfilment_status', 'tracking_reference', 'fulfilment_notes']);
+      const allowedOperationsFields = new Set(['orderId', 'id', 'fulfilment_status']);
       const unknownFields = Object.keys(body).filter(k => !allowedOperationsFields.has(k));
       if (unknownFields.length > 0) {
         return NextResponse.json({
@@ -144,10 +142,8 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const payload: { payment_status?: string; order_status?: string; fulfilment_status?: string; tracking_reference?: string; fulfilment_notes?: string } = {};
+    const payload: { payment_status?: string; order_status?: string; fulfilment_status?: string } = {};
     if (fulfilment_status !== undefined) payload.fulfilment_status = fulfilment_status;
-    if (tracking_reference !== undefined) payload.tracking_reference = tracking_reference;
-    if (fulfilment_notes !== undefined) payload.fulfilment_notes = fulfilment_notes;
 
     if (isSuperAdmin) {
       if (order_status !== undefined) payload.order_status = order_status;
