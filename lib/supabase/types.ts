@@ -3,6 +3,7 @@
  */
 
 export type ProductStatus = 'draft' | 'active' | 'archived';
+export type SalesMode = 'standard' | 'coming_soon' | 'preorder';
 export type MediaType = 'front' | 'back' | 'model' | 'detail' | 'gallery';
 
 // Separate status categories with strict machine values
@@ -122,6 +123,10 @@ export interface DbProduct {
   status: ProductStatus;
   published: boolean;
   featured?: boolean;
+  sales_mode?: SalesMode;
+  release_at?: string | null;
+  availability_message?: string | null;
+  preorder_notice?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -212,6 +217,9 @@ export interface DbOrderItem {
   unit_price: number;
   quantity: number;
   line_total: number;
+  sales_mode_snapshot?: SalesMode;
+  release_at_snapshot?: string | null;
+  availability_message_snapshot?: string | null;
   created_at?: string;
 }
 

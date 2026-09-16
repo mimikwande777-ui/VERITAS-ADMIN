@@ -89,6 +89,9 @@ export function mapDbOrderToOrderRecord(order: AdminOrderFull): OrderRecord {
     designInfo: `SKU: ${item.sku_snapshot || 'N/A'}`,
     sku: item.sku_snapshot,
     lineTotal: item.line_total || (item.unit_price * item.quantity),
+    salesModeSnapshot: (item.sales_mode_snapshot as any) || 'standard',
+    releaseAtSnapshot: item.release_at_snapshot || null,
+    availabilityMessageSnapshot: item.availability_message_snapshot || null,
   }));
 
   const formattedDate = order.createdAt 
@@ -444,7 +447,7 @@ export async function createOrderInSupabase(
     const productIds = Array.from(new Set(payload.items.map(i => i.productId)));
     const { data: dbProducts, error: prodErr } = await client
       .from('products')
-      .select('id, name, selling_price, status, published')
+      .select('id, name, selling_price, status, published, sales_mode, release_at, availability_message')
       .in('id', productIds);
 
     if (prodErr || !dbProducts || dbProducts.length === 0) {
@@ -473,6 +476,9 @@ export async function createOrderInSupabase(
       quantity: number;
       unitPrice: number;
       lineTotal: number;
+      salesModeSnapshot: 'standard' | 'coming_soon' | 'preorder';
+      releaseAtSnapshot?: string | null;
+      availabilityMessageSnapshot?: string | null;
     }> = [];
 
     let calculatedSubtotal = 0;
@@ -484,6 +490,9 @@ export async function createOrderInSupabase(
       }
       if (dbProd.status !== 'active' || !dbProd.published) {
         return { success: false, error: `Product ${dbProd.name} is not available for purchase` };
+      }
+      if (dbProd.sales_mode === 'coming_soon') {
+        return { success: false, error: `Product ${dbProd.name} is Coming Soon and cannot be purchased yet` };
       }
 
       // Find matching variant
@@ -515,7 +524,10 @@ export async function createOrderInSupabase(
         sku: matchingVariant?.sku || item.sku || 'N/A',
         quantity: qty,
         unitPrice: authoritativePrice,
-        lineTotal
+        lineTotal,
+        salesModeSnapshot: (dbProd.sales_mode as any) || 'standard',
+        releaseAtSnapshot: dbProd.release_at || null,
+        availabilityMessageSnapshot: dbProd.availability_message || null,
       });
     }
 
@@ -611,7 +623,10 @@ export async function createOrderInSupabase(
       sku_snapshot: item.sku,
       quantity: item.quantity,
       unit_price: item.unitPrice,
-      line_total: item.lineTotal
+      line_total: item.lineTotal,
+      sales_mode_snapshot: item.salesModeSnapshot || 'standard',
+      release_at_snapshot: item.releaseAtSnapshot || null,
+      availability_message_snapshot: item.availabilityMessageSnapshot || null,
     }));
 
     const { error: itemsErr } = await client.from('order_items').insert(itemsToInsert);

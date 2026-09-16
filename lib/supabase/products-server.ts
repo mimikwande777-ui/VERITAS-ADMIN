@@ -131,6 +131,10 @@ export function mapDbProductToProductItemServer(raw: any): ProductItem {
     status: (raw.status ? raw.status.toUpperCase() : 'DRAFT') as any,
     published: raw.published ?? false,
     featured: raw.featured ?? false,
+    salesMode: (raw.sales_mode as any) || 'standard',
+    releaseAt: raw.release_at || null,
+    availabilityMessage: raw.availability_message || null,
+    preorderNotice: raw.preorder_notice || null,
     active: raw.status === 'active',
     stockStatus: totalStock <= 0 ? 'Out of Stock' : totalStock <= 10 ? 'Low Stock' : 'In Stock',
     image: primaryImage,
@@ -190,6 +194,11 @@ export async function serverCreateSupabaseProduct(data: Partial<ProductItem>, cl
 
     const generatedSlug = data.slug || (data.name ? data.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : `product-${Date.now()}`);
 
+    const salesMode = (data.salesMode || (data as any).sales_mode || 'standard') as 'standard' | 'coming_soon' | 'preorder';
+    const releaseAt = data.releaseAt !== undefined ? data.releaseAt : (data as any).release_at !== undefined ? (data as any).release_at : null;
+    const availabilityMessage = data.availabilityMessage !== undefined ? data.availabilityMessage : (data as any).availability_message !== undefined ? (data as any).availability_message : null;
+    const preorderNotice = data.preorderNotice !== undefined ? data.preorderNotice : (data as any).preorder_notice !== undefined ? (data as any).preorder_notice : null;
+
     const dbPayload: any = {
       name: data.name || 'Untitled Product',
       slug: generatedSlug,
@@ -198,8 +207,12 @@ export async function serverCreateSupabaseProduct(data: Partial<ProductItem>, cl
       selling_price: sellingPrice,
       cost_price: costPrice,
       status: statusLower,
-      published: data.published ?? false,
-      featured: data.featured ?? false,
+      published: statusLower === 'archived' ? false : (data.published ?? false),
+      featured: statusLower === 'archived' ? false : (data.featured ?? false),
+      sales_mode: salesMode,
+      release_at: releaseAt,
+      availability_message: availabilityMessage,
+      preorder_notice: preorderNotice,
     };
 
     if (categoryId) dbPayload.category_id = categoryId;
@@ -293,6 +306,24 @@ export async function serverUpdateSupabaseProduct(
     if (updates.status !== undefined) patch.status = updates.status.toLowerCase();
     if (updates.published !== undefined) patch.published = updates.published;
     if (updates.featured !== undefined) patch.featured = updates.featured;
+
+    if (updates.salesMode !== undefined) patch.sales_mode = updates.salesMode;
+    else if ((updates as any).sales_mode !== undefined) patch.sales_mode = (updates as any).sales_mode;
+
+    if (updates.releaseAt !== undefined) patch.release_at = updates.releaseAt;
+    else if ((updates as any).release_at !== undefined) patch.release_at = (updates as any).release_at;
+
+    if (updates.availabilityMessage !== undefined) patch.availability_message = updates.availabilityMessage;
+    else if ((updates as any).availability_message !== undefined) patch.availability_message = (updates as any).availability_message;
+
+    if (updates.preorderNotice !== undefined) patch.preorder_notice = updates.preorderNotice;
+    else if ((updates as any).preorder_notice !== undefined) patch.preorder_notice = (updates as any).preorder_notice;
+
+    // Archiving rule: When status becomes archived, enforce published = false and featured = false
+    if (patch.status === 'archived') {
+      patch.published = false;
+      patch.featured = false;
+    }
 
     const categoryTarget = (updates as any).categoryId || (updates as any).category_id || updates.category;
     if (categoryTarget) {

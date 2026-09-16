@@ -129,7 +129,13 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
   const [collection, setCollection] = useState(initialProduct?.collection || 'DROP 001');
   const [customCollection, setCustomCollection] = useState('');
   const [isAddingCustomCollection, setIsAddingCustomCollection] = useState(false);
-  const [availableCollections, setAvailableCollections] = useState(['DROP 001', 'Core Classics', 'Limited Editions']);
+  const [availableCollections, setAvailableCollections] = useState([
+    'DROP 001',
+    'VERITAS ESSENTIALS',
+    'VERITAS PREMIUM',
+    'Core Classics',
+    'Limited Editions'
+  ]);
 
   const [drop, setDrop] = useState(initialProduct?.drop || 'DROP 001');
   const [tags, setTags] = useState<string[]>(initialProduct?.tags || []);
@@ -137,6 +143,35 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
 
   const [featured, setFeatured] = useState(initialProduct?.featured ?? false);
   const [newArrival, setNewArrival] = useState(initialProduct?.newArrival ?? false);
+
+  // Sales Mode & Availability Lifecycle
+  const [salesMode, setSalesMode] = useState<'standard' | 'coming_soon' | 'preorder'>(
+    initialProduct?.salesMode || 'standard'
+  );
+  const [releaseAt, setReleaseAt] = useState<string>(
+    initialProduct?.releaseAt ? (initialProduct.releaseAt.includes('T') ? initialProduct.releaseAt.slice(0, 16) : initialProduct.releaseAt) : ''
+  );
+  const [availabilityMessage, setAvailabilityMessage] = useState<string>(
+    initialProduct?.availabilityMessage || ''
+  );
+  const [preorderNotice, setPreorderNotice] = useState<string>(
+    initialProduct?.preorderNotice || 'This item is available for preorder. Payment is collected now. Your order will be prepared once the product is released. We will email you with release and delivery updates.'
+  );
+
+  // Load dynamic collections on mount
+  useEffect(() => {
+    fetch('/api/admin/collections')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.collections)) {
+          const names = data.collections.map((c: any) => c.title || c.name).filter(Boolean);
+          if (names.length > 0) {
+            setAvailableCollections(prev => Array.from(new Set([...prev, ...names])));
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Status & Publishing
   const [status, setStatus] = useState<ProductStatus>(initialProduct?.status || 'DRAFT');
@@ -448,6 +483,9 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
       if (images.length === 0) {
         errors.push('Product must have at least one product image before publishing.');
       }
+      if (salesMode === 'preorder' && !releaseAt) {
+        errors.push('Expected Release Date is required before publishing a Preorder product.');
+      }
     }
 
     setValidationErrors(errors);
@@ -469,6 +507,9 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
     const finalSlug = slug.trim() || generateSlug(name);
     const rootSku = variants[0]?.sku || generateVariantSku(name, colours[0]?.name || 'BLK', variants[0]?.size || 'M');
 
+    const effectivePublished = targetStatus === 'ARCHIVED' ? false : targetPublished;
+    const effectiveFeatured = targetStatus === 'ARCHIVED' ? false : featured;
+
     const productPayload: Partial<ProductItem> = {
       id: initialProduct?.id,
       name: name.trim(),
@@ -485,10 +526,14 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
       drop: drop.trim() || 'DROP 001',
       tags: tags.length > 0 ? tags : ['VERITAS', 'DROP 001'],
       status: targetStatus,
-      published: targetPublished,
-      featured,
+      published: effectivePublished,
+      featured: effectiveFeatured,
       newArrival,
       active: targetStatus === 'ACTIVE',
+      salesMode,
+      releaseAt: releaseAt ? (releaseAt.includes('T') ? releaseAt : new Date(releaseAt).toISOString()) : null,
+      availabilityMessage: availabilityMessage.trim() || null,
+      preorderNotice: salesMode === 'preorder' ? (preorderNotice.trim() || null) : null,
       stockStatus: totalStockSummary.overallStatus === 'IN STOCK' ? 'In Stock' : (totalStockSummary.overallStatus === 'LOW STOCK' ? 'Low Stock' : 'Out of Stock'),
       image: primaryImg,
       galleryImages: images.map(img => img.url),
@@ -772,7 +817,186 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
 
 
           {/* ==================================================
-              SECTION B — PRICING & PROFIT CALCULATIONS
+              SECTION B — SALES MODE & AVAILABILITY LIFECYCLE
+              ================================================== */}
+          <div className="bg-[#111] border border-[#1F1F1F] p-6 shadow-sm">
+            <div className="flex items-center justify-between border-b border-[#1F1F1F] pb-4 mb-6">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#D4AF37]" />
+                <h2 className="text-sm font-bold uppercase tracking-wider text-white">
+                  Section B — Sales Mode & Availability Lifecycle
+                </h2>
+              </div>
+              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border uppercase ${
+                salesMode === 'preorder' ? 'bg-amber-950/60 text-amber-300 border-amber-800/60' :
+                salesMode === 'coming_soon' ? 'bg-purple-950/60 text-purple-300 border-purple-800/60' :
+                'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
+              }`}>
+                MODE: {salesMode.replace('_', ' ')}
+              </span>
+            </div>
+
+            <div className="space-y-6">
+              {/* Sales Mode 3-Way Selector */}
+              <div>
+                <label className="block text-xs font-mono uppercase tracking-wider text-[#AAA] mb-3">
+                  Select Product Sales & Distribution Mode <span className="text-[#D4AF37]">*</span>
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Standard */}
+                  <button
+                    type="button"
+                    onClick={() => setSalesMode('standard')}
+                    className={`p-4 text-left border transition-all rounded-sm flex flex-col justify-between ${
+                      salesMode === 'standard'
+                        ? 'bg-[#181818] border-[#D4AF37] ring-1 ring-[#D4AF37]'
+                        : 'bg-[#0E0E0E] border-[#242424] hover:border-[#444]'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className={`text-xs font-mono font-bold uppercase ${salesMode === 'standard' ? 'text-[#D4AF37]' : 'text-white'}`}>
+                          Standard Sale
+                        </span>
+                        {salesMode === 'standard' && <span className="w-2 h-2 rounded-full bg-[#D4AF37]" />}
+                      </div>
+                      <p className="text-[11px] text-[#888] font-mono leading-relaxed">
+                        Regular in-stock production item. Live instant checkout and standard warehouse fulfilment.
+                      </p>
+                    </div>
+                    <span className="text-[9px] font-mono text-[#555] uppercase mt-3 block">
+                      Requires available stock
+                    </span>
+                  </button>
+
+                  {/* Coming Soon */}
+                  <button
+                    type="button"
+                    onClick={() => setSalesMode('coming_soon')}
+                    className={`p-4 text-left border transition-all rounded-sm flex flex-col justify-between ${
+                      salesMode === 'coming_soon'
+                        ? 'bg-[#181818] border-purple-500 ring-1 ring-purple-500'
+                        : 'bg-[#0E0E0E] border-[#242424] hover:border-[#444]'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className={`text-xs font-mono font-bold uppercase ${salesMode === 'coming_soon' ? 'text-purple-400' : 'text-white'}`}>
+                          Coming Soon
+                        </span>
+                        {salesMode === 'coming_soon' && <span className="w-2 h-2 rounded-full bg-purple-400" />}
+                      </div>
+                      <p className="text-[11px] text-[#888] font-mono leading-relaxed">
+                        Public storefront preview before drop. Zero stock allowed. Checkout is disabled until launch.
+                      </p>
+                    </div>
+                    <span className="text-[9px] font-mono text-purple-400/80 uppercase mt-3 block">
+                      Preview / Teaser Mode
+                    </span>
+                  </button>
+
+                  {/* Preorder */}
+                  <button
+                    type="button"
+                    onClick={() => setSalesMode('preorder')}
+                    className={`p-4 text-left border transition-all rounded-sm flex flex-col justify-between ${
+                      salesMode === 'preorder'
+                        ? 'bg-[#181818] border-amber-500 ring-1 ring-amber-500'
+                        : 'bg-[#0E0E0E] border-[#242424] hover:border-[#444]'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className={`text-xs font-mono font-bold uppercase ${salesMode === 'preorder' ? 'text-amber-400' : 'text-white'}`}>
+                          Preorder
+                        </span>
+                        {salesMode === 'preorder' && <span className="w-2 h-2 rounded-full bg-amber-400" />}
+                      </div>
+                      <p className="text-[11px] text-[#888] font-mono leading-relaxed">
+                        Customer preorder before release. Immediate payment capture. Fulfilment starts on release date.
+                      </p>
+                    </div>
+                    <span className="text-[9px] font-mono text-amber-400/80 uppercase mt-3 block">
+                      Advance Ordering
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Conditional Release Date & Availability Details */}
+              <div className="p-4 bg-[#0A0A0A] border border-[#222] rounded-sm space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Release Date */}
+                  <div>
+                    <label className="block text-xs font-mono uppercase tracking-wider text-[#AAA] mb-1.5">
+                      Expected Release Date {salesMode === 'preorder' && <span className="text-amber-400">* (Required)</span>}
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={releaseAt}
+                      onChange={(e) => setReleaseAt(e.target.value)}
+                      className="w-full bg-[#121212] border border-[#333] p-2.5 text-xs font-mono text-white focus:outline-none focus:border-[#D4AF37]"
+                    />
+                    <p className="text-[10px] text-[#666] font-mono mt-1">
+                      {salesMode === 'preorder' ? 'Target release/shipment date disclosed to customers.' : 'Optional projected launch timestamp.'}
+                    </p>
+                  </div>
+
+                  {/* Availability Message / Badge */}
+                  <div>
+                    <label className="block text-xs font-mono uppercase tracking-wider text-[#AAA] mb-1.5">
+                      Availability Badge / Message
+                    </label>
+                    <input
+                      type="text"
+                      value={availabilityMessage}
+                      onChange={(e) => setAvailabilityMessage(e.target.value)}
+                      placeholder={
+                        salesMode === 'coming_soon' ? 'e.g. Dropping Soon — Subscribe for early access' :
+                        salesMode === 'preorder' ? 'e.g. Limited Preorder Allocation' :
+                        'e.g. In Stock — Ships within 24-48h'
+                      }
+                      className="w-full bg-[#121212] border border-[#333] p-2.5 text-xs text-white font-mono focus:outline-none focus:border-[#D4AF37] placeholder-[#444]"
+                    />
+                    <p className="text-[10px] text-[#666] font-mono mt-1">
+                      Visual tag displayed on product cards and storefront product page.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Preorder Notice Textarea (Visible when preorder) */}
+                {salesMode === 'preorder' && (
+                  <div className="pt-3 border-t border-[#1C1C1C]">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-mono uppercase tracking-wider text-amber-300">
+                        Customer Preorder Notice & Terms
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setPreorderNotice('This item is available for preorder. Payment is collected now. Your order will be prepared once the product is released. We will email you with release and delivery updates.')}
+                        className="text-[10px] font-mono text-[#D4AF37] hover:underline"
+                      >
+                        Reset to default notice
+                      </button>
+                    </div>
+                    <textarea
+                      rows={3}
+                      value={preorderNotice}
+                      onChange={(e) => setPreorderNotice(e.target.value)}
+                      className="w-full bg-[#121212] border border-amber-900/40 p-3 text-xs text-white font-mono focus:outline-none focus:border-amber-500 leading-relaxed"
+                    />
+                    <p className="text-[10px] text-amber-500/70 font-mono mt-1">
+                      Prominently rendered above the &apos;PREORDER NOW&apos; button on the customer product page.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+
+          {/* ==================================================
+              SECTION C — PRICING & PROFIT CALCULATIONS
               ================================================== */}
           <div className="bg-[#111] border border-[#1F1F1F] p-6 shadow-sm">
             <div className="flex items-center justify-between border-b border-[#1F1F1F] pb-4 mb-6">

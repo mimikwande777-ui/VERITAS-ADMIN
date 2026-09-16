@@ -47,8 +47,9 @@ export default function ProductsPage() {
   const router = useRouter();
   const { products, loading, error } = useProductsState();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusTab, setStatusTab] = useState<'ALL' | 'ACTIVE' | 'DRAFT' | 'ARCHIVED'>('ALL');
+  const [statusTab, setStatusTab] = useState<'ALL' | 'ACTIVE' | 'DRAFT' | 'ARCHIVED' | 'PREORDERS' | 'COMING_SOON'>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [collectionFilter, setCollectionFilter] = useState<string>('all');
   const [notification, setNotification] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -134,20 +135,30 @@ export default function ProductsPage() {
     if (statusTab === 'ACTIVE') matchesStatus = p.status === 'ACTIVE';
     if (statusTab === 'DRAFT') matchesStatus = p.status === 'DRAFT';
     if (statusTab === 'ARCHIVED') matchesStatus = p.status === 'ARCHIVED';
+    if (statusTab === 'PREORDERS') matchesStatus = p.salesMode === 'preorder';
+    if (statusTab === 'COMING_SOON') matchesStatus = p.salesMode === 'coming_soon';
 
     let matchesCategory = true;
     if (categoryFilter !== 'all') matchesCategory = p.category === categoryFilter;
 
-    return matchesSearch && matchesStatus && matchesCategory;
+    let matchesCollection = true;
+    if (collectionFilter !== 'all') {
+      matchesCollection = (p.collection || '').toLowerCase() === collectionFilter.toLowerCase();
+    }
+
+    return matchesSearch && matchesStatus && matchesCategory && matchesCollection;
   });
 
   const categories = Array.from(new Set(products.map(p => p.category)));
+  const collections = Array.from(new Set(products.map(p => p.collection).filter(Boolean))) as string[];
 
   // Counts for status tabs
   const countAll = products.length;
   const countActive = products.filter(p => p.status === 'ACTIVE').length;
   const countDraft = products.filter(p => p.status === 'DRAFT').length;
   const countArchived = products.filter(p => p.status === 'ARCHIVED').length;
+  const countPreorders = products.filter(p => p.salesMode === 'preorder').length;
+  const countComingSoon = products.filter(p => p.salesMode === 'coming_soon').length;
 
   return (
     <AdminAccessGuard requiredPermission="canViewProducts" featureLabel="Product Catalog & Apparel Lines">
@@ -165,7 +176,7 @@ export default function ProductsPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-widest text-white">Product Catalog</h1>
           <p className="text-[11px] sm:text-xs text-[#888] font-mono mt-0.5 sm:mt-1">
-            CENTRAL SOURCE OF TRUTH • ZAR CURRENCY • PRODUCT DATA
+            CENTRAL SOURCE OF TRUTH • ZAR CURRENCY • LIFECYCLE & SALES MODES
           </p>
         </div>
         <div className="w-full sm:w-auto">
@@ -179,7 +190,7 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* STATUS TABS */}
+      {/* STATUS & SALES MODE TABS */}
       <div className="flex items-center gap-1 border-b border-[#1F1F1F] pb-2 overflow-x-auto no-scrollbar whitespace-nowrap -mx-4 px-4 sm:mx-0 sm:px-0">
         <button
           onClick={() => setStatusTab('ALL')}
@@ -210,6 +221,26 @@ export default function ProductsPage() {
           }`}
         >
           Drafts ({countDraft})
+        </button>
+        <button
+          onClick={() => setStatusTab('PREORDERS')}
+          className={`min-h-[44px] px-3.5 sm:px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all border-b-2 shrink-0 ${
+            statusTab === 'PREORDERS'
+              ? 'border-amber-400 text-amber-300 bg-amber-950/30'
+              : 'border-transparent text-[#888] hover:text-white'
+          }`}
+        >
+          Preorders ({countPreorders})
+        </button>
+        <button
+          onClick={() => setStatusTab('COMING_SOON')}
+          className={`min-h-[44px] px-3.5 sm:px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all border-b-2 shrink-0 ${
+            statusTab === 'COMING_SOON'
+              ? 'border-purple-400 text-purple-300 bg-purple-950/30'
+              : 'border-transparent text-[#888] hover:text-white'
+          }`}
+        >
+          Coming Soon ({countComingSoon})
         </button>
         <button
           onClick={() => setStatusTab('ARCHIVED')}
@@ -248,6 +279,19 @@ export default function ProductsPage() {
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
+
+            {collections.length > 0 && (
+              <select 
+                value={collectionFilter}
+                onChange={(e) => setCollectionFilter(e.target.value)}
+                className="w-full sm:w-auto min-h-[44px] px-3 py-2 bg-[#0A0A0A] border border-[#333] text-base md:text-xs text-white uppercase tracking-wider focus:outline-none focus:border-[#D4AF37] font-mono rounded-none"
+              >
+                <option value="all">All Collections ({collections.length})</option>
+                {collections.map(col => (
+                  <option key={col} value={col}>{col}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
@@ -495,12 +539,22 @@ export default function ProductsPage() {
 
                       {/* Product Name & SKU */}
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-white tracking-wide hover:text-[#D4AF37] transition-colors">
                             {product.name}
                           </span>
+                          {product.salesMode === 'preorder' && (
+                            <span className="px-1.5 py-0.5 text-[8px] font-mono font-bold bg-amber-950/60 text-amber-300 border border-amber-800/60 rounded">
+                              PREORDER
+                            </span>
+                          )}
+                          {product.salesMode === 'coming_soon' && (
+                            <span className="px-1.5 py-0.5 text-[8px] font-mono font-bold bg-purple-950/60 text-purple-300 border border-purple-800/60 rounded">
+                              COMING SOON
+                            </span>
+                          )}
                           {product.featured && (
-                            <span className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40 rounded">
+                            <span className="px-1.5 py-0.5 text-[8px] font-mono font-bold bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40 rounded">
                               FEATURED
                             </span>
                           )}
@@ -508,6 +562,11 @@ export default function ProductsPage() {
                         <div className="text-[11px] text-[#777] font-mono mt-0.5">
                           SKU: <span className="text-[#AAA]">{product.sku}</span> • /{product.slug}
                         </div>
+                        {product.releaseAt && (product.salesMode === 'preorder' || product.salesMode === 'coming_soon') && (
+                          <div className="text-[10px] text-amber-400 font-mono mt-0.5">
+                            Release: {new Date(product.releaseAt).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short', day: 'numeric' })}
+                          </div>
+                        )}
                         <div className="text-[10px] text-[#555] font-mono mt-0.5">
                           {product.variants?.length || product.sizes?.length || 0} Variants • {product.colours?.length || 1} Colours
                         </div>

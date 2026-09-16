@@ -207,6 +207,10 @@ export function mapDbProductToProductItem(raw: any): ProductItem {
     status: statusUpper,
     published: raw.published ?? false,
     featured: raw.featured ?? false,
+    salesMode: (raw.sales_mode as any) || 'standard',
+    releaseAt: raw.release_at || null,
+    availabilityMessage: raw.availability_message || null,
+    preorderNotice: raw.preorder_notice || null,
     active: isPubliclyActive,
     image: mainImage,
     images: mediaList,
@@ -876,12 +880,34 @@ export async function archiveSupabaseProduct(id: string): Promise<ProductItem | 
   const res = await updateSupabaseProduct(id, {
     status: 'ARCHIVED',
     published: false,
+    featured: false,
     active: false,
   });
   if (res.product) {
     void recordAuditLog({
       action: 'product.unpublish',
       actionLabel: `Unpublished and archived product "${res.product.name}" (${id})`,
+      targetType: 'product',
+      targetId: id,
+    });
+  }
+  return res.product;
+}
+
+/**
+ * Restore archived product to Draft
+ */
+export async function restoreToDraftSupabaseProduct(id: string): Promise<ProductItem | null> {
+  const res = await updateSupabaseProduct(id, {
+    status: 'DRAFT',
+    published: false,
+    featured: false,
+    active: false,
+  });
+  if (res.product) {
+    void recordAuditLog({
+      action: 'product.update',
+      actionLabel: `Restored product to Draft "${res.product.name}" (${id})`,
       targetType: 'product',
       targetId: id,
     });

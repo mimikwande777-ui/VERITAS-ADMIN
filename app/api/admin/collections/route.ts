@@ -5,6 +5,35 @@ import { createServiceRoleSupabaseClient } from '@/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+export async function GET(request: NextRequest) {
+  try {
+    const serviceClient = createServiceRoleSupabaseClient();
+    if (!serviceClient) {
+      return NextResponse.json({ 
+        success: true, 
+        collections: [
+          { id: 'col_essentials', name: 'VERITAS ESSENTIALS', title: 'VERITAS ESSENTIALS', slug: 'veritas-essentials', is_active: true },
+          { id: 'col_premium', name: 'VERITAS PREMIUM', title: 'VERITAS PREMIUM', slug: 'veritas-premium', is_active: true },
+          { id: 'col_drop001', name: 'DROP 001', title: 'DROP 001', slug: 'drop-001', is_active: true },
+        ] 
+      });
+    }
+
+    const { data, error } = await serviceClient
+      .from('collections')
+      .select('*')
+      .order('name', { ascending: true });
+
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true, collections: data || [] }, { status: 200 });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err?.message || 'Failed to fetch collections' }, { status: 500 });
+  }
+}
+
 export async function POST(request: NextRequest) {
   const authCheck = await requireAdmin(request, { requiredPermission: 'canEditCollections' });
   if (!authCheck.authorized) {

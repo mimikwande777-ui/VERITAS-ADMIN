@@ -57,6 +57,7 @@ export default function OrdersPage() {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [orderModeFilter, setOrderModeFilter] = useState<'all' | 'standard' | 'preorder'>('all');
   const [dateRangePreset, setDateRangePreset] = useState<'all' | 'today' | '7d' | '30d' | '90d' | 'custom'>('all');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -278,13 +279,25 @@ INTERNAL TRACK:   ${order.trackingNumber}
   const handleResetFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
+    setOrderModeFilter('all');
     setDateRangePreset('all');
     setStartDate('');
     setEndDate('');
     setShowDateCustom(false);
   };
 
-  // Filtered orders with search, status, and date range filters
+  const isPreorderOrder = (order: OrderRecord) => {
+    return order.products?.some(p => 
+      p.salesModeSnapshot === 'preorder' || 
+      (p as any).sales_mode_snapshot === 'preorder' ||
+      (order.rawItems || []).some(ri => ri.sales_mode_snapshot === 'preorder')
+    );
+  };
+
+  const totalPreordersCount = orders.filter(isPreorderOrder).length;
+  const totalStandardCount = orders.length - totalPreordersCount;
+
+  // Filtered orders with search, status, order mode, and date range filters
   const filteredOrders = orders.filter(order => {
     const customerName = order.customer.name || '';
     const customerEmail = order.customer.email || '';
@@ -297,6 +310,13 @@ INTERNAL TRACK:   ${order.trackingNumber}
     let matchesStatus = true;
     if (statusFilter !== 'all') {
       matchesStatus = order.fulfilmentStatus === statusFilter;
+    }
+
+    let matchesMode = true;
+    if (orderModeFilter === 'preorder') {
+      matchesMode = isPreorderOrder(order);
+    } else if (orderModeFilter === 'standard') {
+      matchesMode = !isPreorderOrder(order);
     }
 
     let matchesDate = true;
@@ -333,10 +353,10 @@ INTERNAL TRACK:   ${order.trackingNumber}
       }
     }
 
-    return matchesSearch && matchesStatus && matchesDate;
+    return matchesSearch && matchesStatus && matchesMode && matchesDate;
   });
 
-  const hasActiveFilters = Boolean(searchTerm || statusFilter !== 'all' || dateRangePreset !== 'all' || startDate || endDate);
+  const hasActiveFilters = Boolean(searchTerm || statusFilter !== 'all' || orderModeFilter !== 'all' || dateRangePreset !== 'all' || startDate || endDate);
 
   return (
     <AdminAccessGuard requiredPermission="canViewOrders" featureLabel="Orders & Fulfilment Operations">
@@ -375,6 +395,48 @@ INTERNAL TRACK:   ${order.trackingNumber}
             <span>Refresh Queue</span>
           </button>
         </div>
+      </div>
+
+      {/* ORDER MODE TABS */}
+      <div className="flex items-center gap-1.5 border-b border-[#1F1F1F] pb-2 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setOrderModeFilter('all')}
+          className={`px-4 py-2 text-xs font-mono font-bold uppercase transition-colors whitespace-nowrap rounded-t-xs border-b-2 ${
+            orderModeFilter === 'all'
+              ? 'bg-[#161616] text-[#D4AF37] border-[#D4AF37]'
+              : 'text-[#888] hover:text-white border-transparent hover:bg-[#111]'
+          }`}
+        >
+          All Orders ({orders.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setOrderModeFilter('standard')}
+          className={`px-4 py-2 text-xs font-mono font-bold uppercase transition-colors whitespace-nowrap rounded-t-xs border-b-2 ${
+            orderModeFilter === 'standard'
+              ? 'bg-[#161616] text-white border-white'
+              : 'text-[#888] hover:text-white border-transparent hover:bg-[#111]'
+          }`}
+        >
+          Standard Orders ({totalStandardCount})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setOrderModeFilter('preorder')}
+          className={`px-4 py-2 text-xs font-mono font-bold uppercase transition-colors whitespace-nowrap rounded-t-xs border-b-2 flex items-center gap-2 ${
+            orderModeFilter === 'preorder'
+              ? 'bg-amber-950/40 text-amber-300 border-amber-500'
+              : 'text-amber-400/80 hover:text-amber-300 border-transparent hover:bg-amber-950/20'
+          }`}
+        >
+          <span>Preorders</span>
+          <span className="px-1.5 py-0.2 bg-amber-950 border border-amber-700/60 rounded text-[10px]">
+            {totalPreordersCount}
+          </span>
+        </button>
       </div>
 
       {/* SEARCH AND FILTERS TOOLBAR */}
@@ -574,10 +636,15 @@ INTERNAL TRACK:   ${order.trackingNumber}
                     >
                       {/* Top row: Order Number & Date */}
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono font-bold text-sm text-white tracking-wider">
                             {order.id}
                           </span>
+                          {isPreorderOrder(order) && (
+                            <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase bg-amber-950/70 text-amber-300 border border-amber-800/60">
+                              PREORDER
+                            </span>
+                          )}
                           <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase ${
                             order.paymentStatus === 'paid' 
                               ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40' 
@@ -713,7 +780,14 @@ INTERNAL TRACK:   ${order.trackingNumber}
                           }`}
                         >
                           <td className="px-6 py-4 font-mono font-bold text-white tracking-wider">
-                            {order.id}
+                            <div className="flex items-center gap-2">
+                              <span>{order.id}</span>
+                              {isPreorderOrder(order) && (
+                                <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase bg-amber-950/70 text-amber-300 border border-amber-800/60">
+                                  PREORDER
+                                </span>
+                              )}
+                            </div>
                           </td>
                           
                           <td className="px-6 py-4 text-xs font-mono text-[#888]">
@@ -928,8 +1002,23 @@ INTERNAL TRACK:   ${order.trackingNumber}
                 {selectedOrderDetails.products.map((item, idx) => (
                   <div key={idx} className="p-3.5 flex items-center justify-between gap-3 text-xs font-mono">
                     <div className="space-y-0.5">
-                      <p className="font-bold text-white uppercase">{item.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-white uppercase">{item.name}</p>
+                        {item.salesModeSnapshot === 'preorder' && (
+                          <span className="px-1.5 py-0.2 text-[8px] font-bold bg-amber-950 text-amber-300 border border-amber-700/60 rounded">
+                            PREORDER
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-[#888]">Size {item.size} • {item.color} • SKU: {item.sku || 'N/A'}</p>
+                      {item.releaseAtSnapshot && (
+                        <p className="text-[10px] text-amber-400">
+                          Release date snapshot: {new Date(item.releaseAtSnapshot).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </p>
+                      )}
+                      {item.availabilityMessageSnapshot && (
+                        <p className="text-[10px] text-[#999] italic">{item.availabilityMessageSnapshot}</p>
+                      )}
                     </div>
                     <div className="text-right">
                       <div className="text-white font-bold">{formatZAR(item.unitPrice * item.quantity)}</div>

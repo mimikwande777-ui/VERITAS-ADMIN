@@ -9,6 +9,7 @@ import {
   createSupabaseProduct,
   updateSupabaseProduct,
   archiveSupabaseProduct as archiveSupa,
+  restoreToDraftSupabaseProduct as restoreDraftSupa,
   publishSupabaseProduct as publishSupa,
   unpublishSupabaseProduct as unpublishSupa,
   deleteSupabaseProduct as deleteSupa 
@@ -318,6 +319,24 @@ export function archiveProduct(id: string): ProductItem | null {
   return updateProduct(id, {
     status: 'ARCHIVED',
     published: false,
+    featured: false,
+    active: false,
+  });
+}
+
+/**
+ * Centralized Service Layer: Restore Product to Draft
+ */
+export function restoreToDraftProduct(id: string): ProductItem | null {
+  if (isSupabaseConfigured()) {
+    restoreDraftSupa(id).then(() => {
+      window.dispatchEvent(new CustomEvent(EVENT_NAME));
+    });
+  }
+  return updateProduct(id, {
+    status: 'DRAFT',
+    published: false,
+    featured: false,
     active: false,
   });
 }

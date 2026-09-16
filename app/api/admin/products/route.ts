@@ -17,7 +17,8 @@ const CONTENT_FIELDS = new Set([
   'tags', 'design_name', 'designName', 'print_placement', 'printPlacement',
   'print_size', 'printSize', 'design_notes', 'designNotes',
   'care_instructions', 'careInstructions', 'category', 'categoryId', 'category_id',
-  'collection', 'collectionId', 'collection_id', 'images', 'media', 'metadata'
+  'collection', 'collectionId', 'collection_id', 'images', 'media', 'metadata',
+  'availability_message', 'availabilityMessage', 'preorder_notice', 'preorderNotice'
 ]);
 
 const PRODUCTION_FIELDS = new Set([
@@ -35,7 +36,8 @@ const PRICE_FIELDS = new Set([
 ]);
 
 const PUBLISH_FIELDS = new Set([
-  'published', 'status', 'active', 'is_active', 'featured'
+  'published', 'status', 'active', 'is_active', 'featured',
+  'sales_mode', 'salesMode', 'release_at', 'releaseAt'
 ]);
 
 const STOCK_FIELDS = new Set([

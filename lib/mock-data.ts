@@ -61,6 +61,10 @@ export interface ProductItem {
   status: ProductStatus;
   published: boolean; // Must be true + status === 'ACTIVE' to be publicly visible
   featured: boolean;
+  salesMode?: 'standard' | 'coming_soon' | 'preorder';
+  releaseAt?: string | null;
+  availabilityMessage?: string | null;
+  preorderNotice?: string | null;
   
   images: ProductMediaImage[];
   image: string; // primary image convenience
@@ -105,6 +109,9 @@ export interface OrderItemProduct {
   designInfo: string;
   sku?: string;
   lineTotal?: number;
+  salesModeSnapshot?: 'standard' | 'coming_soon' | 'preorder';
+  releaseAtSnapshot?: string | null;
+  availabilityMessageSnapshot?: string | null;
 }
 
 export interface OrderRecord {
