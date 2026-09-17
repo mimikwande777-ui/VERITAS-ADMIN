@@ -7,7 +7,10 @@ export async function getClientAuthHeaders(): Promise<Record<string, string>> {
     if (!client) return {};
     const { data: { session } } = await client.auth.getSession();
     if (session?.access_token) {
-      return { Authorization: `Bearer ${session.access_token}` };
+      const now = Math.floor(Date.now() / 1000);
+      if (session.expires_at && session.expires_at > now + 30) {
+        return { Authorization: `Bearer ${session.access_token}` };
+      }
     }
   } catch {
     // ignore

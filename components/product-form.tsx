@@ -33,7 +33,9 @@ import {
   Loader2,
   Search,
   X,
-  Check
+  Check,
+  WifiOff,
+  Clock
 } from 'lucide-react';
 import { 
   ProductItem, 
@@ -58,7 +60,13 @@ import { mockProducts } from '@/lib/mock-data';
 import { formatZAR, compressImageFile } from '@/lib/utils';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { uploadMediaToSupabaseBucket } from '@/lib/supabase/media';
-import { createSupabaseProduct, updateSupabaseProduct } from '@/lib/supabase/products';
+import { 
+  createSupabaseProduct, 
+  updateSupabaseProduct,
+  saveProductDraftRevision,
+  fetchProductDraftRevision,
+  discardProductDraftRevision
+} from '@/lib/supabase/products';
 import { usePWA } from '@/hooks/use-pwa';
 import { useAdminAuth } from '@/lib/auth-context';
 
@@ -278,9 +286,355 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Autosave & Draft Revisions State
+  const [createdDraftId, setCreatedDraftId] = useState<string | null>(initialProduct?.id || null);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | 'error' | 'offline'>('saved');
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+
+  // Revision state for existing published products
+  const [showDraftRevisionBanner, setShowDraftRevisionBanner] = useState<boolean>(false);
+  const [draftRevisionData, setDraftRevisionData] = useState<any | null>(null);
+  const [draftRevisionUpdatedAt, setDraftRevisionUpdatedAt] = useState<string | null>(null);
+
+  const isSavingRef = React.useRef<boolean>(false);
+  const autosaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = React.useRef<boolean>(false);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Check if meaningful data exists before creating initial draft for a brand new product
+  const hasMeaningfulData = (): boolean => {
+    if (name.trim().length > 0) return true;
+    if (shortDescription.trim().length > 0) return true;
+    if (description.trim().length > 0) return true;
+    if ((parseFloat(price) || 0) > 0) return true;
+    if ((parseFloat(costPrice) || 0) > 0) return true;
+    if (images.length > 0) return true;
+    if (tags.length > 0) return true;
+    if (designName.trim().length > 0) return true;
+    if (specifications.trim().length > 0) return true;
+    if (colours.length > 1 || (colours.length === 1 && colours[0].name !== 'Black')) return true;
+    return false;
+  };
+
+  // Build complete draft payload from current form state
+  const getFormPayload = (): Partial<ProductItem> => {
+    const numSellingPrice = parseFloat(price) || 0;
+    const numCostPrice = parseFloat(costPrice) || 0;
+    const numComparePrice = parseFloat(compareAtPrice) || undefined;
+    const finalSlug = slug.trim() || generateSlug(name || 'product');
+    const rootSku = variants[0]?.sku || generateVariantSku(name || 'PRODUCT', colours[0]?.name || 'BLK', variants[0]?.size || 'M');
+
+    // Clean valid images (prevent saving raw blob: URLs)
+    const validImages = images.map(img => ({
+      ...img,
+      url: img.url.startsWith('blob:') && !img.file ? '' : img.url
+    })).filter(img => img.url !== '');
+
+    const primaryImg = validImages.find(img => img.isPrimary)?.url || validImages[0]?.url || '';
+
+    return {
+      id: createdDraftId || initialProduct?.id,
+      name: name.trim() || 'Untitled Product',
+      slug: finalSlug,
+      sku: rootSku,
+      shortDescription: shortDescription.trim() || undefined,
+      description: description.trim() || `${name || 'Product'} by VERITAS. Constructed with high-grade fabrication.`,
+      price: numSellingPrice,
+      compareAtPrice: numComparePrice,
+      costPrice: numCostPrice > 0 ? numCostPrice : undefined,
+      currency: 'ZAR',
+      category: category.trim() || 'T-Shirts',
+      collection: collection.trim() || 'DROP 001',
+      drop: drop.trim() || 'DROP 001',
+      tags: tags.length > 0 ? tags : ['VERITAS'],
+      status: 'DRAFT',
+      published: false,
+      featured,
+      newArrival,
+      active: false,
+      salesMode,
+      releaseAt: releaseAt ? (releaseAt.includes('T') ? releaseAt : new Date(releaseAt).toISOString()) : null,
+      availabilityMessage: availabilityMessage.trim() || null,
+      preorderNotice: salesMode === 'preorder' ? (preorderNotice.trim() || null) : null,
+      stockStatus: totalStockSummary.overallStatus === 'IN STOCK' ? 'In Stock' : (totalStockSummary.overallStatus === 'LOW STOCK' ? 'Low Stock' : 'Out of Stock'),
+      image: primaryImg,
+      galleryImages: validImages.map(img => img.url).filter(Boolean),
+      images: validImages,
+      colours,
+      sizes: Array.from(new Set(variants.map(v => v.size))),
+      variants,
+      designInfo: {
+        designName: designName.trim(),
+        designNotes: designNotes.trim(),
+        printPlacement: printPlacement.trim(),
+        printSize: printSize.trim(),
+      },
+      specifications,
+      updatedAt: new Date().toISOString(),
+    };
+  };
+
+  // Perform background autosave
+  const performAutosave = async () => {
+    if (isSavingRef.current) return;
+
+    if (!isOnline) {
+      setSaveStatus('offline');
+      const activeId = createdDraftId || initialProduct?.id || 'new';
+      localStorage.setItem(`veritas_product_draft_${activeId}`, JSON.stringify(getFormPayload()));
+      return;
+    }
+
+    // Do not create draft on empty new form
+    if (mode === 'create' && !createdDraftId && !hasMeaningfulData()) {
+      return;
+    }
+
+    isSavingRef.current = true;
+    setSaveStatus('saving');
+
+    try {
+      const payload = getFormPayload();
+
+      // Case 1: Editing a Published Product -> Save to product_drafts revision table
+      if (mode === 'edit' && initialProduct?.published && initialProduct?.id) {
+        const res = await saveProductDraftRevision(initialProduct.id, payload);
+        if (res.success) {
+          setSaveStatus('saved');
+          setLastSavedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+          localStorage.setItem(`veritas_product_draft_${initialProduct.id}`, JSON.stringify(payload));
+        } else {
+          setSaveStatus('error');
+        }
+      } 
+      // Case 2: New product or existing draft product -> Save product directly as status = DRAFT
+      else {
+        let saved: ProductItem | null = null;
+
+        const targetId = createdDraftId || initialProduct?.id;
+        if (isSupabaseConfigured()) {
+          if (targetId) {
+            const res = await updateSupabaseProduct(targetId, { ...payload, status: 'DRAFT', published: false });
+            saved = res.product;
+          } else {
+            const res = await createSupabaseProduct({ ...payload, status: 'DRAFT', published: false });
+            saved = res.product;
+          }
+        } else {
+          if (targetId) {
+            saved = updateProduct(targetId, { ...payload, status: 'DRAFT', published: false });
+          } else {
+            saved = createProduct({ ...payload, status: 'DRAFT', published: false });
+          }
+        }
+
+        if (saved && saved.id) {
+          if (!createdDraftId && mode === 'create') {
+            setCreatedDraftId(saved.id);
+            if (typeof window !== 'undefined' && window.history) {
+              window.history.replaceState({}, '', `/admin/products/${saved.id}/edit`);
+            }
+          }
+          setSaveStatus('saved');
+          setLastSavedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+          localStorage.setItem(`veritas_product_draft_${saved.id}`, JSON.stringify(payload));
+
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('veritas_products_updated'));
+          }
+        } else {
+          setSaveStatus('error');
+        }
+      }
+    } catch {
+      setSaveStatus('error');
+    } finally {
+      isSavingRef.current = false;
+    }
+  };
+
+  // Check for draft revision on mount for published product
+  useEffect(() => {
+    if (mode === 'edit' && initialProduct?.id && initialProduct?.published) {
+      const checkDrafts = async () => {
+        // Check local storage backup first
+        const localBackup = localStorage.getItem(`veritas_product_draft_${initialProduct.id}`);
+        if (localBackup) {
+          try {
+            const parsed = JSON.parse(localBackup);
+            if (parsed && parsed.updatedAt) {
+              setDraftRevisionData(parsed);
+              setDraftRevisionUpdatedAt(new Date(parsed.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+              setShowDraftRevisionBanner(true);
+            }
+          } catch {}
+        }
+
+        // Query server for draft revision
+        const res = await fetchProductDraftRevision(initialProduct.id);
+        if (res.hasDraft && res.draftData) {
+          setDraftRevisionData(res.draftData);
+          if (res.updatedAt) {
+            setDraftRevisionUpdatedAt(new Date(res.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+          }
+          setShowDraftRevisionBanner(true);
+        }
+      };
+
+      checkDrafts();
+    }
+  }, [mode, initialProduct?.id, initialProduct?.published]);
+
+  // Debounced autosave trigger on form changes
+  useEffect(() => {
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      return;
+    }
+
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+    }
+
+    autosaveTimerRef.current = setTimeout(() => {
+      setSaveStatus('unsaved');
+      performAutosave();
+    }, 1200);
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+      }
+    };
+  }, [
+    name,
+    slug,
+    price,
+    compareAtPrice,
+    costPrice,
+    shortDescription,
+    description,
+    specifications,
+    category,
+    collection,
+    drop,
+    tags,
+    featured,
+    newArrival,
+    salesMode,
+    releaseAt,
+    availabilityMessage,
+    preorderNotice,
+    colours,
+    selectedSizes,
+    variants,
+    images,
+    designName,
+    designNotes,
+    printPlacement,
+    printSize
+  ]);
+
+  // Save on exit (visibilitychange, pagehide)
+  useEffect(() => {
+    const handleSaveOnExit = () => {
+      if (saveStatus === 'unsaved') {
+        const activeId = createdDraftId || initialProduct?.id || 'new';
+        const payload = getFormPayload();
+        localStorage.setItem(`veritas_product_draft_${activeId}`, JSON.stringify(payload));
+
+        if (isOnline) {
+          if (mode === 'edit' && initialProduct?.published && initialProduct?.id) {
+            fetch('/api/admin/products/draft', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              keepalive: true,
+              body: JSON.stringify({ productId: initialProduct.id, draftData: payload })
+            }).catch(() => {});
+          } else if (activeId !== 'new') {
+            fetch('/api/admin/products', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              keepalive: true,
+              body: JSON.stringify({ id: activeId, ...payload, status: 'DRAFT', published: false })
+            }).catch(() => {});
+          }
+        }
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        handleSaveOnExit();
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', handleSaveOnExit);
+
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', handleSaveOnExit);
+    };
+  }, [saveStatus, createdDraftId, initialProduct, isOnline, mode]);
+
+  // Reconnection sync
+  useEffect(() => {
+    if (isOnline && saveStatus === 'offline') {
+      const timer = setTimeout(() => {
+        performAutosave();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isOnline, saveStatus]);
+
+  // Handlers for published product draft revisions
+  const handleApplyDraftRevision = () => {
+    if (!draftRevisionData) return;
+    const d = draftRevisionData;
+    if (d.name) setName(d.name);
+    if (d.slug) setSlug(d.slug);
+    if (d.price !== undefined) setPrice(String(d.price));
+    if (d.compareAtPrice !== undefined) setCompareAtPrice(String(d.compareAtPrice || ''));
+    if (d.costPrice !== undefined) setCostPrice(String(d.costPrice || ''));
+    if (d.shortDescription) setShortDescription(d.shortDescription);
+    if (d.description) setDescription(d.description);
+    if (d.specifications) setSpecifications(d.specifications);
+    if (d.category) setCategory(d.category);
+    if (d.collection) setCollection(d.collection);
+    if (d.drop) setDrop(d.drop);
+    if (d.tags) setTags(d.tags);
+    if (d.salesMode) setSalesMode(d.salesMode);
+    if (d.releaseAt) setReleaseAt(d.releaseAt);
+    if (d.availabilityMessage) setAvailabilityMessage(d.availabilityMessage);
+    if (d.preorderNotice) setPreorderNotice(d.preorderNotice);
+    if (d.colours) setColours(d.colours);
+    if (d.variants) setVariants(d.variants);
+    if (d.images) setImages(d.images);
+    if (d.designInfo) {
+      if (d.designInfo.designName) setDesignName(d.designInfo.designName);
+      if (d.designInfo.designNotes) setDesignNotes(d.designInfo.designNotes);
+      if (d.designInfo.printPlacement) setPrintPlacement(d.designInfo.printPlacement);
+      if (d.designInfo.printSize) setPrintSize(d.designInfo.printSize);
+    }
+    setShowDraftRevisionBanner(false);
+    showToast('Loaded saved draft revision changes into form.');
+  };
+
+  const handleDiscardDraftRevision = async () => {
+    if (initialProduct?.id) {
+      await discardProductDraftRevision(initialProduct.id);
+      localStorage.removeItem(`veritas_product_draft_${initialProduct.id}`);
+    }
+    setShowDraftRevisionBanner(false);
+    setDraftRevisionData(null);
+    showToast('Discarded draft revision. Reverted to live product.');
   };
 
   // Auto-generate slug from name unless manually edited
@@ -579,6 +933,7 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
     if (!fileList || fileList.length === 0) return;
 
     setIsUploadingMedia(true);
+    setSaveStatus('saving');
     try {
       const selectedFiles = Array.from(fileList);
       const newImagesList: ProductMediaImage[] = [];
@@ -586,8 +941,9 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
       for (const file of selectedFiles) {
         // Create local preview URL immediately
         const previewUrl = URL.createObjectURL(file);
+        const tempId = getUniqueId('img');
         const newImg: ProductMediaImage = {
-          id: getUniqueId('img'),
+          id: tempId,
           url: previewUrl,
           role: imageRoleInput,
           isPrimary: images.filter(img => img.colourName === colourName).length === 0 && newImagesList.length === 0,
@@ -596,6 +952,15 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
           colourName: colourName
         };
         newImagesList.push(newImg);
+
+        // Upload in background to Supabase Storage
+        const safeFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        const uploadPath = `products/gallery/${safeFileName}`;
+        uploadMediaToSupabaseBucket(file, uploadPath).then(res => {
+          if (res.success && res.storagePath) {
+            setImages(prev => prev.map(img => img.id === tempId ? { ...img, url: res.storagePath! } : img));
+          }
+        }).catch(() => {});
       }
 
       setImages(prev => [...prev, ...newImagesList]);
@@ -604,7 +969,6 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
       showToast('Failed to process image attachment. Please try again.');
     } finally {
       setIsUploadingMedia(false);
-      // Reset the input value so selecting the same file again works
       e.target.value = '';
     }
   };
@@ -772,8 +1136,9 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
     let saveError: string | null = null;
 
     if (isSupabaseConfigured()) {
-      if (mode === 'edit' && initialProduct?.id) {
-        const res = await updateSupabaseProduct(initialProduct.id, productPayload);
+      const targetId = createdDraftId || (mode === 'edit' ? initialProduct?.id : undefined);
+      if (targetId) {
+        const res = await updateSupabaseProduct(targetId, productPayload);
         savedProduct = res.product;
         saveError = res.error;
       } else {
@@ -782,8 +1147,9 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
         saveError = res.error;
       }
     } else {
-      if (mode === 'edit' && initialProduct?.id) {
-        savedProduct = updateProduct(initialProduct.id, productPayload);
+      const targetId = createdDraftId || (mode === 'edit' ? initialProduct?.id : undefined);
+      if (targetId) {
+        savedProduct = updateProduct(targetId, productPayload);
       } else {
         savedProduct = createProduct(productPayload);
       }
@@ -791,12 +1157,26 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
 
     if (saveError || !savedProduct || !savedProduct.id) {
       setIsSubmitting(false);
-      showToast(saveError || 'Error saving product to database.');
+      if (targetPublished) {
+        performAutosave();
+        showToast(`Publish failed: ${saveError || 'Server error'}. Progress safely saved as Draft.`);
+      } else {
+        showToast(saveError || 'Error saving product to database.');
+      }
       return;
     }
 
     const createdId = savedProduct.id;
     const productName = savedProduct.name;
+
+    // Discard any draft revision upon successful publish/save
+    if (createdId) {
+      discardProductDraftRevision(createdId);
+      localStorage.removeItem(`veritas_product_draft_${createdId}`);
+    }
+
+    setSaveStatus('saved');
+    setLastSavedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
     // Dispatch global sync event to notify all components
     if (typeof window !== 'undefined') {
@@ -827,6 +1207,37 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
         </div>
       )}
 
+      {/* PUBLISHED PRODUCT DRAFT REVISION BANNER */}
+      {showDraftRevisionBanner && (
+        <div className="bg-amber-950/40 border border-amber-500/50 p-4 rounded-xs mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <Clock className="w-5 h-5 text-amber-400 shrink-0" />
+            <div>
+              <h4 className="text-xs font-bold uppercase font-mono text-amber-300">Unsaved Draft Changes Available</h4>
+              <p className="text-[11px] font-mono text-amber-200/80">
+                An unpublished draft revision from {draftRevisionUpdatedAt || 'a previous session'} exists for this live product.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleApplyDraftRevision}
+              className="px-3.5 py-2 bg-amber-500 text-black font-mono font-bold text-xs uppercase tracking-wider hover:bg-amber-400 transition-colors"
+            >
+              Load Draft Changes
+            </button>
+            <button
+              type="button"
+              onClick={handleDiscardDraftRevision}
+              className="px-3.5 py-2 bg-[#222] text-[#AAA] border border-[#333] font-mono font-bold text-xs uppercase tracking-wider hover:bg-[#333] hover:text-white transition-colors"
+            >
+              Discard Draft
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1F1F1F] pb-6">
         <div className="flex items-center gap-4">
@@ -838,7 +1249,7 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-2xl font-bold uppercase tracking-widest text-white">
                 {mode === 'edit' ? `Edit Product: ${name || 'Item'}` : 'Create New Product'}
               </h1>
@@ -854,6 +1265,42 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                   PUBLISHED
                 </span>
               )}
+
+              {/* AUTOSAVE STATUS INDICATOR PILL */}
+              <div className="flex items-center gap-2 px-3 py-1 bg-[#161616] border border-[#2B2B2B] rounded-full text-[11px] font-mono">
+                {saveStatus === 'saving' && (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 text-[#D4AF37] animate-spin" />
+                    <span className="text-[#D4AF37]">Saving draft...</span>
+                  </>
+                )}
+                {saveStatus === 'saved' && (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-400 font-medium">
+                      Draft saved {lastSavedAt ? `• ${lastSavedAt}` : ''}
+                    </span>
+                  </>
+                )}
+                {saveStatus === 'unsaved' && (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    <span className="text-amber-400">Unsaved changes</span>
+                  </>
+                )}
+                {saveStatus === 'error' && (
+                  <>
+                    <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                    <span className="text-red-400">Autosave failed</span>
+                  </>
+                )}
+                {saveStatus === 'offline' && (
+                  <>
+                    <WifiOff className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="text-amber-400">Offline — local draft saved</span>
+                  </>
+                )}
+              </div>
             </div>
             <p className="text-xs text-[#888] font-mono mt-1">
               CENTRAL VERITAS PRODUCT DATA ARCHITECTURE • ZAR CURRENCY

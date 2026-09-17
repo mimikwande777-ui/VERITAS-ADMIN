@@ -444,12 +444,10 @@ export async function createSupabaseProduct(data: Partial<ProductItem>): Promise
         images: processedImages.length > 0 ? processedImages : data.images,
       };
 
-      const authHeaders = await getClientAuthHeaders();
       const res = await fetch('/api/admin/products', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...authHeaders,
         },
         credentials: 'include',
         body: JSON.stringify(payload),
@@ -671,12 +669,10 @@ export async function updateSupabaseProduct(id: string, updates: Partial<Product
         images: processedImages.length > 0 ? processedImages : updates.images,
       };
 
-      const authHeaders = await getClientAuthHeaders();
       const res = await fetch('/api/admin/products', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          ...authHeaders,
         },
         credentials: 'include',
         body: JSON.stringify(payload),
@@ -985,3 +981,60 @@ export async function deleteSupabaseProduct(id: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Save draft revision for an existing published product
+ */
+export async function saveProductDraftRevision(productId: string, draftData: any): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch('/api/admin/products/draft', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ productId, draftData }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { success: false, error: json.error || 'Failed to save draft' };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Network error saving draft' };
+  }
+}
+
+/**
+ * Fetch draft revision for an existing published product
+ */
+export async function fetchProductDraftRevision(productId: string): Promise<{ hasDraft: boolean; draftData?: any; updatedAt?: string; error?: string }> {
+  try {
+    const res = await fetch(`/api/admin/products/draft?productId=${encodeURIComponent(productId)}`, {
+      method: 'GET',
+      headers: { 'Cache-Control': 'no-cache' },
+      credentials: 'include',
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && json.success && json.hasDraft) {
+      return { hasDraft: true, draftData: json.draft.draftData, updatedAt: json.draft.updatedAt };
+    }
+    return { hasDraft: false };
+  } catch (err: any) {
+    return { hasDraft: false, error: err?.message };
+  }
+}
+
+/**
+ * Discard draft revision for an existing published product
+ */
+export async function discardProductDraftRevision(productId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/admin/products/draft?productId=${encodeURIComponent(productId)}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
