@@ -149,7 +149,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     authenticated: true,
     user: {
       id: authCheck.admin.userId,
@@ -159,4 +159,6 @@ export async function GET(request: NextRequest) {
       name: (authCheck.admin.email || 'ADMIN').split('@')[0].toUpperCase(),
     },
   });
+
+  return authCheck.applyCookies(response);
 }

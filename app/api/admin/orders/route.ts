@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     sanitizeCustomerForRole(rec, canViewSensitive, isFulfilment)
   );
 
-  return NextResponse.json({
+  return authCheck.applyCookies(NextResponse.json({
     success: true,
     count: sanitizedOrders.length,
     orders: sanitizedOrders,
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     headers: {
       'Cache-Control': 'no-store, max-age=0, must-revalidate',
     }
-  });
+  }));
 }
 
 export async function PATCH(request: NextRequest) {
@@ -75,10 +75,10 @@ export async function PATCH(request: NextRequest) {
 
   const serviceClient = createServiceRoleSupabaseClient();
   if (!serviceClient) {
-    return NextResponse.json(
+    return authCheck.applyCookies(NextResponse.json(
       { success: false, error: 'Server database configuration error.' },
       { status: 500 }
-    );
+    ));
   }
 
   try {
@@ -103,7 +103,7 @@ export async function PATCH(request: NextRequest) {
 
     const targetOrderId = orderId || id;
     if (!targetOrderId) {
-      return NextResponse.json({ success: false, error: 'Order ID is required.' }, { status: 400 });
+      return authCheck.applyCookies(NextResponse.json({ success: false, error: 'Order ID is required.' }, { status: 400 }));
     }
 
     // Role-based field enforcement: Operations & other non-super-admins can ONLY update fulfilment status
@@ -125,20 +125,20 @@ export async function PATCH(request: NextRequest) {
 
       const attemptedForbidden = forbiddenFields.some(f => body[f] !== undefined);
       if (attemptedForbidden) {
-        return NextResponse.json({
+        return authCheck.applyCookies(NextResponse.json({
           success: false,
           error: 'Forbidden: Restricted role. Operations partners are authorized to update fulfilment status only. Modifying order_status, payment_status, financials, refunds, or cancellations requires Super Admin permissions.'
-        }, { status: 403 });
+        }, { status: 403 }));
       }
 
       // Check for any arbitrary non-fulfilment fields
       const allowedOperationsFields = new Set(['orderId', 'id', 'fulfilment_status']);
       const unknownFields = Object.keys(body).filter(k => !allowedOperationsFields.has(k));
       if (unknownFields.length > 0) {
-        return NextResponse.json({
+        return authCheck.applyCookies(NextResponse.json({
           success: false,
           error: `Forbidden: Field '${unknownFields.join(', ')}' cannot be modified by Operations.`
-        }, { status: 403 });
+        }, { status: 403 }));
       }
     }
 
@@ -157,11 +157,11 @@ export async function PATCH(request: NextRequest) {
     );
 
     if (!result.success) {
-      return NextResponse.json({ success: false, error: result.error }, { status: 400 });
+      return authCheck.applyCookies(NextResponse.json({ success: false, error: result.error }, { status: 400 }));
     }
 
-    return NextResponse.json({ success: true });
+    return authCheck.applyCookies(NextResponse.json({ success: true }));
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message || 'Internal server error.' }, { status: 500 });
+    return authCheck.applyCookies(NextResponse.json({ success: false, error: err.message || 'Internal server error.' }, { status: 500 }));
   }
 }

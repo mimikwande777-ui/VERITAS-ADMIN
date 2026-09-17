@@ -128,12 +128,12 @@ export async function POST(request: NextRequest) {
 
     const { product, error } = await serverCreateSupabaseProduct(body, serviceClient);
     if (error || !product) {
-      return NextResponse.json({ success: false, error: error || 'Failed to create product' }, { status: 400 });
+      return authCheck.applyCookies(NextResponse.json({ success: false, error: error || 'Failed to create product' }, { status: 400 }));
     }
 
-    return NextResponse.json({ success: true, product }, { status: 201 });
+    return authCheck.applyCookies(NextResponse.json({ success: true, product }, { status: 201 }));
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err?.message || 'Server error creating product' }, { status: 500 });
+    return authCheck.applyCookies(NextResponse.json({ success: false, error: err?.message || 'Server error creating product' }, { status: 500 }));
   }
 }
 
@@ -227,12 +227,12 @@ export async function PATCH(request: NextRequest) {
 
     const { product, error } = await serverUpdateSupabaseProduct(id, body, serviceClient);
     if (error || !product) {
-      return NextResponse.json({ success: false, error: error || 'Failed to update product' }, { status: 400 });
+      return authCheck.applyCookies(NextResponse.json({ success: false, error: error || 'Failed to update product' }, { status: 400 }));
     }
 
-    return NextResponse.json({ success: true, product }, { status: 200 });
+    return authCheck.applyCookies(NextResponse.json({ success: true, product }, { status: 200 }));
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err?.message || 'Server error updating product' }, { status: 500 });
+    return authCheck.applyCookies(NextResponse.json({ success: false, error: err?.message || 'Server error updating product' }, { status: 500 }));
   }
 }
 
@@ -244,10 +244,10 @@ export async function DELETE(request: NextRequest) {
 
   const admin = authCheck.admin;
   if (!hasPermission(admin, 'products.delete')) {
-    return NextResponse.json({
+    return authCheck.applyCookies(NextResponse.json({
       success: false,
       error: 'Forbidden: Product deletion requires products.delete permission.'
-    }, { status: 403 });
+    }, { status: 403 }));
   }
 
   try {
@@ -260,21 +260,21 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (!id) {
-      return NextResponse.json({ success: false, error: 'Product ID is required for deletion' }, { status: 400 });
+      return authCheck.applyCookies(NextResponse.json({ success: false, error: 'Product ID is required for deletion' }, { status: 400 }));
     }
 
     const serviceClient = createServiceRoleSupabaseClient();
     if (!serviceClient) {
-      return NextResponse.json({ success: false, error: 'Database service client not available.' }, { status: 500 });
+      return authCheck.applyCookies(NextResponse.json({ success: false, error: 'Database service client not available.' }, { status: 500 }));
     }
 
     const result = await serverDeleteSupabaseProduct(id, serviceClient);
     if (!result.success) {
-      return NextResponse.json({ success: false, error: result.error || 'Failed to delete product' }, { status: 400 });
+      return authCheck.applyCookies(NextResponse.json({ success: false, error: result.error || 'Failed to delete product' }, { status: 400 }));
     }
 
-    return NextResponse.json({ success: true, message: 'Product deleted successfully' }, { status: 200 });
+    return authCheck.applyCookies(NextResponse.json({ success: true, message: 'Product deleted successfully' }, { status: 200 }));
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err?.message || 'Server error deleting product' }, { status: 500 });
+    return authCheck.applyCookies(NextResponse.json({ success: false, error: err?.message || 'Server error deleting product' }, { status: 500 }));
   }
 }

@@ -25,34 +25,34 @@ export async function POST(request: NextRequest) {
 
     if (action === 'adjust') {
       if (typeof delta !== 'number') {
-        return NextResponse.json(
+        return authCheck.applyCookies(NextResponse.json(
           { success: false, error: 'Missing or invalid delta for adjust action' },
           { status: 400 }
-        );
+        ));
       }
       const result = await serverAdjustVariantStockInSupabase(variantId, delta);
-      return NextResponse.json(result, { status: result.success ? 200 : 400 });
+      return authCheck.applyCookies(NextResponse.json(result, { status: result.success ? 200 : 400 }));
     }
 
     if (action === 'update' || action === 'set') {
       if (typeof quantity !== 'number' && typeof quantity !== 'string') {
-        return NextResponse.json(
+        return authCheck.applyCookies(NextResponse.json(
           { success: false, error: 'Missing or invalid quantity for update action' },
           { status: 400 }
-        );
+        ));
       }
       const result = await serverUpdateVariantStockInSupabase(variantId, Number(quantity), threshold);
-      return NextResponse.json(result, { status: result.success ? 200 : 400 });
+      return authCheck.applyCookies(NextResponse.json(result, { status: result.success ? 200 : 400 }));
     }
 
-    return NextResponse.json(
+    return authCheck.applyCookies(NextResponse.json(
       { success: false, error: `Invalid action '${action}'. Expected 'adjust' or 'update'.` },
       { status: 400 }
-    );
+    ));
   } catch (err: any) {
-    return NextResponse.json(
+    return authCheck.applyCookies(NextResponse.json(
       { success: false, error: err?.message || 'Failed to process inventory update' },
       { status: 500 }
-    );
+    ));
   }
 }

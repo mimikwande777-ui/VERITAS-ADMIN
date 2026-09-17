@@ -69,12 +69,12 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+      return authCheck.applyCookies(NextResponse.json({ success: false, error: error.message }, { status: 400 }));
     }
 
-    return NextResponse.json({ success: true, collection: data }, { status: 201 });
+    return authCheck.applyCookies(NextResponse.json({ success: true, collection: data }, { status: 201 }));
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err?.message || 'Failed to create collection' }, { status: 500 });
+    return authCheck.applyCookies(NextResponse.json({ success: false, error: err?.message || 'Failed to create collection' }, { status: 500 }));
   }
 }
 
@@ -89,12 +89,12 @@ export async function PATCH(request: NextRequest) {
     const { id, name, slug, description, image_url, is_active, featured } = body;
 
     if (!id) {
-      return NextResponse.json({ success: false, error: 'Collection ID is required' }, { status: 400 });
+      return authCheck.applyCookies(NextResponse.json({ success: false, error: 'Collection ID is required' }, { status: 400 }));
     }
 
     const serviceClient = createServiceRoleSupabaseClient();
     if (!serviceClient) {
-      return NextResponse.json({ success: false, error: 'Database service unavailable' }, { status: 500 });
+      return authCheck.applyCookies(NextResponse.json({ success: false, error: 'Database service unavailable' }, { status: 500 }));
     }
 
     const patch: any = { updated_at: new Date().toISOString() };
@@ -113,12 +113,12 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+      return authCheck.applyCookies(NextResponse.json({ success: false, error: error.message }, { status: 400 }));
     }
 
-    return NextResponse.json({ success: true, collection: data }, { status: 200 });
+    return authCheck.applyCookies(NextResponse.json({ success: true, collection: data }, { status: 200 }));
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err?.message || 'Failed to update collection' }, { status: 500 });
+    return authCheck.applyCookies(NextResponse.json({ success: false, error: err?.message || 'Failed to update collection' }, { status: 500 }));
   }
 }
 
@@ -138,21 +138,21 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (!id) {
-      return NextResponse.json({ success: false, error: 'Collection ID is required' }, { status: 400 });
+      return authCheck.applyCookies(NextResponse.json({ success: false, error: 'Collection ID is required' }, { status: 400 }));
     }
 
     const serviceClient = createServiceRoleSupabaseClient();
     if (!serviceClient) {
-      return NextResponse.json({ success: false, error: 'Database service unavailable' }, { status: 500 });
+      return authCheck.applyCookies(NextResponse.json({ success: false, error: 'Database service unavailable' }, { status: 500 }));
     }
 
     const { error } = await serviceClient.from('collections').delete().eq('id', id);
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+      return authCheck.applyCookies(NextResponse.json({ success: false, error: error.message }, { status: 400 }));
     }
 
-    return NextResponse.json({ success: true, message: 'Collection deleted successfully' }, { status: 200 });
+    return authCheck.applyCookies(NextResponse.json({ success: true, message: 'Collection deleted successfully' }, { status: 200 }));
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err?.message || 'Failed to delete collection' }, { status: 500 });
+    return authCheck.applyCookies(NextResponse.json({ success: false, error: err?.message || 'Failed to delete collection' }, { status: 500 }));
   }
 }
