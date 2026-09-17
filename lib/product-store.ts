@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { ProductItem, ProductVariant, ProductMediaImage, ProductColour, InventoryItem, calculateStockStatus } from './mock-data';
 import { isSupabaseConfigured } from './supabase/config';

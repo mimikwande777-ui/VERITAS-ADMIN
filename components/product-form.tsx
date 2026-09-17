@@ -30,7 +30,10 @@ import {
   RotateCcw,
   EyeOff,
   Archive,
-  Loader2
+  Loader2,
+  Search,
+  X,
+  Check
 } from 'lucide-react';
 import { 
   ProductItem, 
@@ -62,14 +65,40 @@ import { useAdminAuth } from '@/lib/auth-context';
 // Standard preset options
 const DEFAULT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', 'OS', 'S/M', 'M/L'];
 
-const PRESET_COLOURS = [
-  { name: 'Black', code: '#0A0A0A' },
-  { name: 'Off-White', code: '#F0EDE6' },
-  { name: 'Vintage Washed Black', code: '#1C1C1C' },
-  { name: 'Charcoal', code: '#2B2B2B' },
-  { name: 'Heather Grey', code: '#666666' },
-  { name: 'Navy', code: '#131A26' },
+const PRESET_COLOURS: { name: string; code: string }[] = [
+  { name: 'Black', code: '#000000' },
   { name: 'White', code: '#FFFFFF' },
+  { name: 'Off White', code: '#FAF9F6' },
+  { name: 'Cream', code: '#FFFDD0' },
+  { name: 'Beige', code: '#F5F5DC' },
+  { name: 'Stone', code: '#D0D0CE' },
+  { name: 'Taupe', code: '#483C32' },
+  { name: 'Brown', code: '#964B00' },
+  { name: 'Chocolate', code: '#3D1C02' },
+  { name: 'Grey', code: '#808080' },
+  { name: 'Charcoal', code: '#36454F' },
+  { name: 'Silver', code: '#C0C0C0' },
+  { name: 'Gold', code: '#D4AF37' },
+  { name: 'Red', code: '#FF0000' },
+  { name: 'Burgundy', code: '#800020' },
+  { name: 'Maroon', code: '#800000' },
+  { name: 'Pink', code: '#FFC0CB' },
+  { name: 'Rose', code: '#FF007F' },
+  { name: 'Orange', code: '#FFA500' },
+  { name: 'Yellow', code: '#FFFF00' },
+  { name: 'Mustard', code: '#FFDB58' },
+  { name: 'Green', code: '#008000' },
+  { name: 'Olive', code: '#808000' },
+  { name: 'Forest Green', code: '#228B22' },
+  { name: 'Emerald', code: '#50C878' },
+  { name: 'Mint', code: '#98FF98' },
+  { name: 'Blue', code: '#0000FF' },
+  { name: 'Navy', code: '#000080' },
+  { name: 'Royal Blue', code: '#4169E1' },
+  { name: 'Sky Blue', code: '#87CEEB' },
+  { name: 'Purple', code: '#800080' },
+  { name: 'Lavender', code: '#E6E6FA' },
+  { name: 'Teal', code: '#008080' },
 ];
 
 const PRINT_PLACEMENTS = [
@@ -181,15 +210,19 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
   const [status, setStatus] = useState<ProductStatus>(initialProduct?.status || 'DRAFT');
   const [published, setPublished] = useState<boolean>(initialProduct?.published ?? false);
 
-  // Colours
+  // Colours State
   const [colours, setColours] = useState<ProductColour[]>(
     initialProduct?.colours?.length ? initialProduct.colours : [
-      { name: 'Black', code: '#0A0A0A' }
+      { name: 'Black', code: '#000000' }
     ]
   );
   const [selectedColourName, setSelectedColourName] = useState<string>(
     initialProduct?.colours?.length ? initialProduct.colours[0].name : 'Black'
   );
+  const [colorSearchQuery, setColorSearchQuery] = useState('');
+  const [customColorName, setCustomColorName] = useState('');
+  const [customColorHex, setCustomColorHex] = useState('#D4AF37');
+  const [isCustomColorMode, setIsCustomColorMode] = useState(false);
   const [newColourName, setNewColourName] = useState('');
   const [newColourCode, setNewColourCode] = useState('#000000');
 
@@ -204,7 +237,7 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
       return initialProduct.variants;
     }
     const initialColours = initialProduct?.colours?.length ? initialProduct.colours : [
-      { name: 'Black', code: '#0A0A0A' }
+      { name: 'Black', code: '#000000' }
     ];
     const initialSizes = initialProduct?.sizes?.length ? initialProduct.sizes : ['S', 'M', 'L', 'XL'];
     const pName = initialProduct?.name || 'PRODUCT';
@@ -217,9 +250,9 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
           colour: c.name,
           size: s,
           sku: generateVariantSku(pName, c.name, s),
-          stockQuantity: 0,
+          stockQuantity: 10,
           lowStockThreshold: 5,
-          status: 'OUT OF STOCK',
+          status: 'IN STOCK',
         });
       });
     });
@@ -289,6 +322,152 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
 
     setVariants(newVariants);
     showToast(`Generated ${newVariants.length} product variants (${colours.length} colours × ${selectedSizes.length} sizes)`);
+  };
+
+  // Add preset colourway
+  const handleAddPresetColour = (preset: { name: string; code: string }) => {
+    const exists = colours.some(c => c.name.toLowerCase() === preset.name.toLowerCase());
+    if (exists) {
+      setSelectedColourName(preset.name);
+      showToast(`Switched to colour "${preset.name}"`);
+      return;
+    }
+    
+    // Add colour
+    const updated = [...colours, { name: preset.name, code: preset.code }];
+    setColours(updated);
+    setSelectedColourName(preset.name);
+
+    // Auto-generate variants for this colour based on existing active sizes
+    const activeSizes = Array.from(new Set(variants.map(v => v.size)));
+    const sizesToUse = activeSizes.length > 0 ? activeSizes : ['S', 'M', 'L', 'XL'];
+    
+    setVariants(prev => {
+      const newVariants = [...prev];
+      sizesToUse.forEach(size => {
+        if (!newVariants.some(v => v.colour === preset.name && v.size === size)) {
+          newVariants.push({
+            id: getUniqueId('var'),
+            colour: preset.name,
+            size: size,
+            sku: generateVariantSku(name || 'PRODUCT', preset.name, size),
+            stockQuantity: 10,
+            lowStockThreshold: 5,
+            status: 'IN STOCK'
+          });
+        }
+      });
+      return newVariants;
+    });
+
+    setColorSearchQuery('');
+    showToast(`Added colour "${preset.name}"`);
+  };
+
+  // Add custom colourway
+  const handleAddCustomColour = () => {
+    const cleanName = customColorName.trim();
+    if (!cleanName) {
+      showToast('Please enter a colour name.');
+      return;
+    }
+    const exists = colours.some(c => c.name.toLowerCase() === cleanName.toLowerCase());
+    if (exists) {
+      setSelectedColourName(cleanName);
+      showToast(`Colour "${cleanName}" already exists. Switched to it.`);
+      setIsCustomColorMode(false);
+      return;
+    }
+
+    const updated = [...colours, { name: cleanName, code: customColorHex }];
+    setColours(updated);
+    setSelectedColourName(cleanName);
+
+    // Auto-generate variants
+    const activeSizes = Array.from(new Set(variants.map(v => v.size)));
+    const sizesToUse = activeSizes.length > 0 ? activeSizes : ['S', 'M', 'L', 'XL'];
+    
+    setVariants(prev => {
+      const newVariants = [...prev];
+      sizesToUse.forEach(size => {
+        if (!newVariants.some(v => v.colour === cleanName && v.size === size)) {
+          newVariants.push({
+            id: getUniqueId('var'),
+            colour: cleanName,
+            size: size,
+            sku: generateVariantSku(name || 'PRODUCT', cleanName, size),
+            stockQuantity: 10,
+            lowStockThreshold: 5,
+            status: 'IN STOCK'
+          });
+        }
+      });
+      return newVariants;
+    });
+
+    setCustomColorName('');
+    setIsCustomColorMode(false);
+    setColorSearchQuery('');
+    showToast(`Added custom colour "${cleanName}"`);
+  };
+
+  // Switch to single standard colour
+  const handleSetSingleStandardColour = () => {
+    if (colours.length === 1 && colours[0].name === 'Standard') {
+      showToast('Already set to single standard colourway.');
+      return;
+    }
+    const single = [{ name: 'Standard', code: '#111111' }];
+    setColours(single);
+    setSelectedColourName('Standard');
+
+    const activeSizes = Array.from(new Set(variants.map(v => v.size)));
+    const sizesToUse = activeSizes.length > 0 ? activeSizes : ['S', 'M', 'L', 'XL'];
+    
+    const newVariants: ProductVariant[] = sizesToUse.map(size => ({
+      id: getUniqueId('var'),
+      colour: 'Standard',
+      size: size,
+      sku: generateVariantSku(name || 'PRODUCT', 'Standard', size),
+      stockQuantity: 10,
+      lowStockThreshold: 5,
+      status: 'IN STOCK'
+    }));
+    setVariants(newVariants);
+    showToast('Applied Single Standard Colourway');
+  };
+
+  // Sync active sizes from one colour to all colours
+  const handleSyncSizesToAllColours = (sourceColourName: string) => {
+    const currentSizes = variants.filter(v => v.colour === sourceColourName).map(v => v.size);
+    if (currentSizes.length === 0) {
+      showToast(`No sizes configured for ${sourceColourName}.`);
+      return;
+    }
+
+    setVariants(prev => {
+      const nextList = [...prev];
+      colours.forEach(col => {
+        if (col.name !== sourceColourName) {
+          currentSizes.forEach(size => {
+            if (!nextList.some(v => v.colour === col.name && v.size === size)) {
+              nextList.push({
+                id: getUniqueId('var'),
+                colour: col.name,
+                size: size,
+                sku: generateVariantSku(name || 'PRODUCT', col.name, size),
+                stockQuantity: 10,
+                lowStockThreshold: 5,
+                status: 'IN STOCK'
+              });
+            }
+          });
+        }
+      });
+      return nextList;
+    });
+
+    showToast(`Applied ${currentSizes.length} sizes to all ${colours.length} colours.`);
   };
 
   // Add / Remove colours
@@ -490,27 +669,30 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
     const errors: string[] = [];
 
     if (!name.trim()) {
-      errors.push('Product name required');
+      errors.push('Product name is required.');
     }
     
     if (forPublish) {
       if (numSellingPrice <= 0) {
-        errors.push('Selling price required (must be greater than R0.00)');
+        errors.push('Selling price is required (must be greater than R0.00).');
       }
       if (!category.trim()) {
-        errors.push('Category required');
+        errors.push('Category is required.');
       }
       if (!collection.trim()) {
-        errors.push('Collection required');
+        errors.push('Collection is required.');
       }
-      if (images.length === 0) {
-        errors.push('At least one image required');
+      if (colours.length === 0) {
+        errors.push('Add at least one colour before publishing.');
       }
       if (variants.length === 0) {
-        errors.push('At least one variant required');
+        errors.push('Add at least one size / variant before publishing.');
+      }
+      if (images.length === 0) {
+        errors.push('At least one product image is required.');
       }
       if (salesMode === 'preorder' && !releaseAt) {
-        errors.push('Release date required for preorder');
+        errors.push('Release date is required for preorder products.');
       }
     }
 
@@ -1183,114 +1365,221 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
               SECTION D — PRODUCT COLOURS & INVENTORY
               ================================================== */}
           <div className="bg-[#111] border border-[#1F1F1F] shadow-sm mb-8">
-            {/* COLOURS HEADER */}
+            {/* COLOURS HEADER & CONTROLS */}
             <div className="p-6 border-b border-[#1F1F1F]">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                 <div className="flex items-center gap-2">
                   <Palette className="w-4 h-4 text-[#D4AF37]" />
                   <h2 className="text-sm font-bold uppercase tracking-wider text-white">
                     Section D — Product Colours & Variants
                   </h2>
                 </div>
-                <span className="text-[10px] font-mono text-[#888]">
-                  {colours.length} ACTIVE {colours.length === 1 ? 'COLOUR' : 'COLOURS'}
-                </span>
-              </div>
-
-              {/* Existing Colour Badges */}
-              <div className="flex flex-wrap gap-2.5">
-                {colours.map((col) => (
-                  <button
-                    key={col.name}
-                    type="button"
-                    onClick={() => setSelectedColourName(col.name)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-sm border transition-all ${selectedColourName === col.name ? 'bg-[#1A1A1A] border-[#D4AF37]' : 'bg-[#161616] border-[#2C2C2C] hover:border-[#555]'}`}
-                  >
-                    <span
-                      className="w-4 h-4 rounded-full border border-white/20 shadow-inner"
-                      style={{ backgroundColor: col.code }}
-                    />
-                    <span className={`text-xs font-mono font-medium ${selectedColourName === col.name ? 'text-[#D4AF37]' : 'text-white'}`}>{col.name}</span>
-                    <span className="text-[10px] font-mono text-[#666] ml-1">{variants.filter(v => v.colour === col.name).length} SKUs</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Add Custom Colour */}
-              <div className="mt-6 bg-[#151515] border border-[#262626] p-4 rounded-sm">
-                <div className="text-xs font-mono uppercase tracking-wider text-[#AAA] mb-3">
-                  Add New Colourway
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex-1 min-w-[140px]">
-                    <input
-                      type="text"
-                      value={newColourName}
-                      onChange={(e) => setNewColourName(e.target.value)}
-                      placeholder="e.g. Vintage Washed Charcoal"
-                      className="w-full bg-[#0A0A0A] border border-[#333] px-3 py-2 text-xs text-white focus:outline-none focus:border-[#D4AF37]"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 bg-[#0A0A0A] border border-[#333] px-3 py-1.5">
-                    <input
-                      type="color"
-                      value={newColourCode}
-                      onChange={(e) => setNewColourCode(e.target.value)}
-                      className="w-6 h-6 bg-transparent border-0 cursor-pointer"
-                    />
-                    <span className="text-xs font-mono text-[#AAA]">{newColourCode}</span>
-                  </div>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={handleAddColour}
-                    className="px-4 py-2 bg-[#222] hover:bg-[#333] border border-[#444] text-white text-xs font-bold uppercase tracking-wider transition-colors"
+                    onClick={handleSetSingleStandardColour}
+                    className="text-[11px] font-mono uppercase px-2.5 py-1 bg-[#1A1A1A] hover:bg-[#252525] border border-[#333] text-[#CCC] hover:text-white transition-colors rounded-xs"
+                    title="Set as standard single-colour product"
                   >
-                    Add Colour
+                    Standard Single Colour
                   </button>
-                </div>
-                {/* Preset Fast Selection */}
-                <div className="mt-4 pt-3 border-t border-[#222]">
-                  <span className="text-[10px] font-mono uppercase text-[#666] block mb-2">
-                    Quick Preset Library:
+                  <span className="text-[10px] font-mono text-[#D4AF37] bg-[#D4AF37]/10 px-2 py-0.5 border border-[#D4AF37]/30 rounded-xs">
+                    {colours.length} {colours.length === 1 ? 'COLOURWAY' : 'COLOURWAYS'}
                   </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {PRESET_COLOURS.map((preset) => (
+                </div>
+              </div>
+
+              {/* Active Colour Tabs */}
+              <div className="mb-6">
+                <div className="text-[11px] font-mono uppercase text-[#888] mb-2 flex items-center justify-between">
+                  <span>Active Colourways ({colours.length}):</span>
+                  <span className="text-[10px] text-[#666]">Tap to manage sizes & stock</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {colours.map((col) => {
+                    const isSelected = selectedColourName === col.name;
+                    const countForColour = variants.filter(v => v.colour === col.name).length;
+                    return (
                       <button
-                        key={preset.name}
+                        key={col.name}
                         type="button"
-                        onClick={() => {
-                          if (!colours.some(c => c.name === preset.name)) {
-                            setColours(prev => [...prev, { name: preset.name, code: preset.code }]);
-                            setSelectedColourName(preset.name);
-                            showToast(`Added ${preset.name}`);
-                          }
-                        }}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-[#0A0A0A] border border-[#2B2B2B] hover:border-[#D4AF37] text-[11px] font-mono text-[#CCC] rounded-sm transition-all"
+                        onClick={() => setSelectedColourName(col.name)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xs border transition-all ${
+                          isSelected
+                            ? 'bg-[#1C1C1C] border-[#D4AF37] text-[#D4AF37] ring-1 ring-[#D4AF37]/30 shadow-md'
+                            : 'bg-[#141414] border-[#2A2A2A] text-gray-300 hover:border-[#555]'
+                        }`}
                       >
-                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: preset.code }} />
-                        {preset.name}
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-xs flex-shrink-0"
+                          style={{ backgroundColor: col.code }}
+                        />
+                        <span className="text-xs font-mono font-medium">{col.name}</span>
+                        <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-xs ${
+                          isSelected ? 'bg-[#D4AF37]/20 text-[#D4AF37]' : 'bg-[#222] text-[#888]'
+                        }`}>
+                          {countForColour} SKUs
+                        </span>
                       </button>
-                    ))}
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* SEARCHABLE COLOUR PICKER & PRESET LIBRARY */}
+              <div className="bg-[#151515] border border-[#262626] p-4 sm:p-5 rounded-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-white flex items-center gap-2">
+                    <Search className="w-3.5 h-3.5 text-[#D4AF37]" />
+                    Add Colourway / Preset Palette
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomColorMode(!isCustomColorMode)}
+                    className="text-xs font-mono uppercase text-[#D4AF37] hover:underline flex items-center gap-1 self-start sm:self-auto"
+                  >
+                    {isCustomColorMode ? 'Close Custom Colour' : '+ Add Custom Colour'}
+                  </button>
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative">
+                  <Search className="w-4 h-4 text-[#666] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={colorSearchQuery}
+                    onChange={(e) => setColorSearchQuery(e.target.value)}
+                    placeholder="Search colours (e.g. Black, White, Charcoal, Stone, Navy, Emerald, Burgundy...)"
+                    className="w-full bg-[#0A0A0A] border border-[#333] pl-9 pr-9 py-2.5 text-xs font-mono text-white placeholder:text-[#555] focus:outline-none focus:border-[#D4AF37]"
+                  />
+                  {colorSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setColorSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#666] hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Preset Colour Swatch Grid */}
+                <div>
+                  <div className="text-[10px] font-mono uppercase text-[#777] mb-2 flex items-center justify-between">
+                    <span>
+                      {colorSearchQuery 
+                        ? `Filtered Presets (${PRESET_COLOURS.filter(p => p.name.toLowerCase().includes(colorSearchQuery.toLowerCase())).length}):` 
+                        : 'Quick Selection (Tap to add or switch):'}
+                    </span>
+                    <span className="text-[10px] text-[#666]">33 Curated VERITAS Tones</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 max-h-[160px] overflow-y-auto pr-1 pb-1">
+                    {PRESET_COLOURS
+                      .filter(p => p.name.toLowerCase().includes(colorSearchQuery.toLowerCase()))
+                      .map((preset) => {
+                        const isAlreadyActive = colours.some(c => c.name.toLowerCase() === preset.name.toLowerCase());
+                        return (
+                          <button
+                            key={preset.name}
+                            type="button"
+                            onClick={() => handleAddPresetColour(preset)}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono rounded-xs border transition-all ${
+                              isAlreadyActive
+                                ? 'bg-[#1C1C1C] border-[#D4AF37]/80 text-[#D4AF37] font-semibold'
+                                : 'bg-[#0A0A0A] border-[#2A2A2A] text-[#CCC] hover:border-[#D4AF37] hover:text-white'
+                            }`}
+                          >
+                            <span
+                              className="w-3 h-3 rounded-full border border-white/20 flex-shrink-0"
+                              style={{ backgroundColor: preset.code }}
+                            />
+                            <span>{preset.name}</span>
+                            {isAlreadyActive && <Check className="w-3 h-3 text-[#D4AF37] ml-0.5" />}
+                          </button>
+                        );
+                      })}
+                    {PRESET_COLOURS.filter(p => p.name.toLowerCase().includes(colorSearchQuery.toLowerCase())).length === 0 && (
+                      <div className="w-full py-3 text-center text-xs font-mono text-[#777] bg-[#0A0A0A] border border-[#222]">
+                        No matching preset for &quot;{colorSearchQuery}&quot;. Use the Custom Colour tool below to add it.
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                {/* Custom Colour Creator Panel */}
+                {isCustomColorMode && (
+                  <div className="pt-4 border-t border-[#262626] bg-[#0D0D0D] p-3.5 rounded-xs space-y-3 animate-in fade-in">
+                    <span className="text-xs font-mono font-bold uppercase text-[#D4AF37] block">
+                      Create Custom Colourway
+                    </span>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex-1 min-w-[160px]">
+                        <input
+                          type="text"
+                          value={customColorName}
+                          onChange={(e) => setCustomColorName(e.target.value)}
+                          placeholder="Colour name (e.g. Acid Wash Taupe)"
+                          className="w-full bg-[#141414] border border-[#333] px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-[#D4AF37]"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 bg-[#141414] border border-[#333] px-3 py-1.5">
+                        <input
+                          type="color"
+                          value={customColorHex}
+                          onChange={(e) => setCustomColorHex(e.target.value)}
+                          className="w-6 h-6 bg-transparent border-0 cursor-pointer"
+                        />
+                        <span className="text-xs font-mono text-[#AAA]">{customColorHex}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddCustomColour}
+                        className="px-4 py-2 bg-[#D4AF37] hover:bg-[#B3932F] text-[#0A0A0A] text-xs font-mono font-bold uppercase tracking-wider transition-colors rounded-xs"
+                      >
+                        Save Colour
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* SELECTED COLOUR DETAILS */}
+            {/* SELECTED COLOUR DETAILS & VARIANTS */}
             {selectedColourName && colours.some(c => c.name === selectedColourName) && (
               <div className="p-6 bg-[#161616]">
-                <div className="flex items-center justify-between mb-6">
-                   <h3 className="text-lg font-mono font-bold text-white flex items-center gap-3">
-                      <span className="w-5 h-5 rounded-full border border-white/20 shadow-inner" style={{ backgroundColor: colours.find(c => c.name === selectedColourName)?.code }} />
-                      Managing: {selectedColourName}
-                   </h3>
-                   <button
-                      type="button"
-                      onClick={() => handleRemoveColour(selectedColourName)}
-                      className="text-xs font-mono text-[#666] hover:text-red-400 flex items-center gap-1 bg-[#111] px-3 py-1.5 border border-[#333] rounded-sm"
-                   >
-                     <Trash2 className="w-3.5 h-3.5" /> Remove Colour
-                   </button>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-[#262626]">
+                   <div className="flex items-center gap-3">
+                      <span 
+                        className="w-6 h-6 rounded-full border border-white/20 shadow-md flex-shrink-0" 
+                        style={{ backgroundColor: colours.find(c => c.name === selectedColourName)?.code }} 
+                      />
+                      <div>
+                        <h3 className="text-base font-mono font-bold text-white">
+                          Colourway: <span className="text-[#D4AF37]">{selectedColourName}</span>
+                        </h3>
+                        <span className="text-[10px] font-mono text-[#888]">
+                          HEX: {colours.find(c => c.name === selectedColourName)?.code || '#000000'} • {variants.filter(v => v.colour === selectedColourName).length} active SKUs
+                        </span>
+                      </div>
+                   </div>
+                   
+                   <div className="flex items-center gap-2 flex-wrap">
+                     <button
+                        type="button"
+                        onClick={() => handleSyncSizesToAllColours(selectedColourName)}
+                        className="text-xs font-mono text-gray-300 hover:text-white bg-[#1A1A1A] hover:bg-[#252525] px-3 py-1.5 border border-[#333] rounded-xs transition-colors"
+                        title="Copy these sizes to all other colours"
+                     >
+                       Sync Sizes to All Colours
+                     </button>
+                     <button
+                        type="button"
+                        onClick={() => handleRemoveColour(selectedColourName)}
+                        className="text-xs font-mono text-[#888] hover:text-red-400 flex items-center gap-1 bg-[#111] px-3 py-1.5 border border-[#333] rounded-xs transition-colors"
+                     >
+                       <Trash2 className="w-3.5 h-3.5" /> Remove Colour
+                     </button>
+                   </div>
                 </div>
 
                 {/* SIZES & VARIANTS FOR THIS COLOUR */}
@@ -1298,7 +1587,7 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                   <div className="bg-[#111] p-4 border-b border-[#262626] flex items-center justify-between">
                      <div className="flex items-center gap-2">
                         <Boxes className="w-4 h-4 text-[#D4AF37]" />
-                        <h4 className="text-sm font-bold uppercase tracking-wider text-white">Sizes & Inventory</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-white">Sizes & Inventory for {selectedColourName}</h4>
                      </div>
                      <span className="text-[10px] font-mono text-[#777]">
                         {variants.filter(v => v.colour === selectedColourName).length} SKUs
@@ -1307,7 +1596,7 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                   
                   <div className="p-4 bg-[#151515]">
                      <label className="block text-xs font-mono uppercase tracking-wider text-[#AAA] mb-2">
-                        Active Sizes for {selectedColourName}
+                        Active Sizes for {selectedColourName} (Tap to Toggle):
                      </label>
                      <div className="flex flex-wrap gap-2 mb-4">
                         {DEFAULT_SIZES.map((size) => {
@@ -1317,10 +1606,10 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                               key={size}
                               type="button"
                               onClick={() => handleToggleVariantSize(selectedColourName, size)}
-                              className={`px-3 py-1.5 text-xs font-mono font-bold transition-all border ${
+                              className={`min-h-[44px] px-3.5 py-2 text-xs font-mono font-bold transition-all border rounded-xs ${
                                 isActive
-                                  ? 'bg-[#D4AF37] text-[#0A0A0A] border-[#D4AF37]'
-                                  : 'bg-[#0A0A0A] text-[#888] border-[#2B2B2B] hover:border-[#555]'
+                                  ? 'bg-[#D4AF37] text-[#0A0A0A] border-[#D4AF37] shadow-sm'
+                                  : 'bg-[#0A0A0A] text-[#888] border-[#2B2B2B] hover:border-[#555] hover:text-white'
                               }`}
                             >
                               {size}
@@ -1333,13 +1622,13 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                           type="text"
                           value={customSizeInput}
                           onChange={(e) => setCustomSizeInput(e.target.value)}
-                          placeholder="Custom size (e.g. 6XL)"
-                          className="bg-[#0A0A0A] border border-[#333] px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-[#D4AF37] max-w-[200px]"
+                          placeholder="Custom size (e.g. 6XL, OS)"
+                          className="bg-[#0A0A0A] border border-[#333] px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-[#D4AF37] max-w-[200px]"
                         />
                         <button
                           type="button"
                           onClick={() => handleAddCustomVariantSize(selectedColourName)}
-                          className="px-3 py-1.5 bg-[#222] hover:bg-[#333] text-xs font-mono uppercase text-white border border-[#444]"
+                          className="px-3.5 py-2 bg-[#222] hover:bg-[#333] text-xs font-mono uppercase text-white border border-[#444] rounded-xs"
                         >
                           Add Size
                         </button>
@@ -1355,7 +1644,7 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                                  <tr className="bg-[#111] border-b border-[#333] text-[10px] font-mono uppercase text-[#888]">
                                    <th className="py-2.5 px-3">Size</th>
                                    <th className="py-2.5 px-3">SKU</th>
-                                   <th className="py-2.5 px-3 text-right">Stock</th>
+                                   <th className="py-2.5 px-3 text-right">Stock Qty</th>
                                    <th className="py-2.5 px-3 text-right">Low Alert</th>
                                    <th className="py-2.5 px-3 text-center">Status</th>
                                    <th className="py-2.5 px-3 text-center"></th>
@@ -1412,10 +1701,10 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                           {/* Mobile Responsive Cards View */}
                           <div className="block md:hidden space-y-3">
                             {variants.filter(v => v.colour === selectedColourName).map(v => (
-                              <div key={v.id} className="bg-[#0D0D0D] border border-[#2B2B2B] p-3.5 rounded-sm space-y-3">
+                              <div key={v.id} className="bg-[#0D0D0D] border border-[#2B2B2B] p-3.5 rounded-xs space-y-3">
                                 <div className="flex items-center justify-between border-b border-[#222] pb-2">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-xs font-mono font-bold text-[#D4AF37] px-2 py-0.5 bg-[#1A1A1A] border border-[#333] rounded-xs">
+                                    <span className="text-xs font-mono font-bold text-[#D4AF37] px-2.5 py-1 bg-[#1A1A1A] border border-[#333] rounded-xs">
                                       Size {v.size}
                                     </span>
                                     <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
@@ -1429,7 +1718,7 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                                   <button
                                     type="button"
                                     onClick={() => handleToggleVariantSize(selectedColourName, v.size)}
-                                    className="text-[#666] hover:text-red-400 p-1.5 transition-colors"
+                                    className="text-[#666] hover:text-red-400 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors"
                                     title="Delete Variant"
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -1454,7 +1743,7 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                                       min="0"
                                       value={v.stockQuantity}
                                       onChange={(e) => handleVariantChange(v.id, 'stockQuantity', parseInt(e.target.value) || 0)}
-                                      className="w-full bg-[#141414] border border-[#333] px-2.5 py-2 text-xs font-mono font-bold text-white focus:outline-none focus:border-[#D4AF37]"
+                                      className="w-full bg-[#141414] border border-[#333] px-2.5 py-2.5 text-xs font-mono font-bold text-white focus:outline-none focus:border-[#D4AF37]"
                                     />
                                   </div>
                                   <div>
@@ -1464,7 +1753,7 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                                       min="1"
                                       value={v.lowStockThreshold}
                                       onChange={(e) => handleVariantChange(v.id, 'lowStockThreshold', parseInt(e.target.value) || 5)}
-                                      className="w-full bg-[#141414] border border-[#333] px-2.5 py-2 text-xs font-mono text-[#AAA] focus:outline-none focus:border-[#D4AF37]"
+                                      className="w-full bg-[#141414] border border-[#333] px-2.5 py-2.5 text-xs font-mono text-[#AAA] focus:outline-none focus:border-[#D4AF37]"
                                     />
                                   </div>
                                 </div>

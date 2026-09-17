@@ -16,9 +16,12 @@ const CONTENT_FIELDS = new Set([
   'name', 'title', 'slug', 'description', 'short_description', 'shortDescription',
   'tags', 'design_name', 'designName', 'print_placement', 'printPlacement',
   'print_size', 'printSize', 'design_notes', 'designNotes',
+  'design_info', 'designInfo', 'specifications',
   'care_instructions', 'careInstructions', 'category', 'categoryId', 'category_id',
-  'collection', 'collectionId', 'collection_id', 'images', 'media', 'metadata',
-  'availability_message', 'availabilityMessage', 'preorder_notice', 'preorderNotice'
+  'collection', 'collectionId', 'collection_id', 'drop',
+  'images', 'media', 'metadata', 'image', 'gallery_images', 'galleryImages',
+  'availability_message', 'availabilityMessage', 'preorder_notice', 'preorderNotice',
+  'created_at', 'createdAt', 'updated_at', 'updatedAt'
 ]);
 
 const PRODUCTION_FIELDS = new Set([
@@ -32,17 +35,19 @@ const PRODUCTION_FIELDS = new Set([
 const PRICE_FIELDS = new Set([
   'price', 'selling_price', 'sellingPrice',
   'compare_at_price', 'compareAtPrice',
-  'cost_price', 'costPrice'
+  'cost_price', 'costPrice',
+  'currency', 'store_currency', 'storeCurrency', 'product_currency', 'productCurrency'
 ]);
 
 const PUBLISH_FIELDS = new Set([
-  'published', 'status', 'active', 'is_active', 'featured',
+  'published', 'status', 'active', 'is_active', 'featured', 'new_arrival', 'newArrival',
   'sales_mode', 'salesMode', 'release_at', 'releaseAt'
 ]);
 
 const STOCK_FIELDS = new Set([
   'stock_quantity', 'stockQuantity',
-  'low_stock_threshold', 'lowStockThreshold'
+  'low_stock_threshold', 'lowStockThreshold',
+  'stock_status', 'stockStatus'
 ]);
 
 const ALL_ALLOWED_PRODUCT_FIELDS = new Set([

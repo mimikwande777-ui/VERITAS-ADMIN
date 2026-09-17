@@ -407,15 +407,24 @@ export async function serverUpdateSupabaseProduct(
       }
     }
 
+    if (Object.keys(colourMap).length === 0) {
+      const { data: existingColours } = await client.from('product_colours').select('id, name').eq('product_id', id);
+      if (existingColours) {
+        for (const col of existingColours) {
+          colourMap[col.name] = col.id;
+        }
+      }
+    }
+
     if (updates.variants && updates.variants.length > 0) {
       const variantPayload = updates.variants.map(v => ({
         product_id: id,
-        colour_id: colourMap[v.colour] || undefined,
+        colour_id: (v as any).colour_id || (v as any).colourId || (v.colour ? colourMap[v.colour] : undefined),
         sku: v.sku || `VRT-${id.slice(0, 6)}-${v.colour}-${v.size}`,
         colour: v.colour,
         size: v.size,
-        stock_quantity: Number(v.stockQuantity) || 0,
-        low_stock_threshold: Number(v.lowStockThreshold) || 5,
+        stock_quantity: Number(v.stockQuantity !== undefined ? v.stockQuantity : (v as any).stock_quantity) || 0,
+        low_stock_threshold: Number(v.lowStockThreshold !== undefined ? v.lowStockThreshold : (v as any).low_stock_threshold) || 5,
       }));
       const { error: varError } = await client.from('product_variants').insert(variantPayload);
       if (varError) {
