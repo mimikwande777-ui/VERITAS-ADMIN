@@ -773,52 +773,85 @@ export default function ProductDetailPage() {
               </div>
             )}
 
-            {/* Variant Table */}
-            <div className="overflow-x-auto border border-[#222]">
-              <table className="w-full text-left border-collapse min-w-[500px]">
-                <thead>
-                  <tr className="bg-[#161616] border-b border-[#262626] text-[10px] font-mono uppercase text-[#888]">
-                    <th className="py-2.5 px-3">Colour / Size</th>
-                    <th className="py-2.5 px-3">SKU Identifier</th>
-                    <th className="py-2.5 px-3 text-right">Available Stock</th>
-                    <th className="py-2.5 px-3 text-right">Threshold</th>
-                    <th className="py-2.5 px-3 text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#1C1C1C] text-xs font-mono">
-                  {(product.variants || []).map((v) => (
-                    <tr key={v.id} className="hover:bg-[#151515] transition-colors">
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="w-3 h-3 rounded-full border border-white/20"
-                            style={{ backgroundColor: product.colours?.find(c => c.name === v.colour)?.code || '#000' }}
-                          />
-                          <span className="font-bold text-white">{v.colour}</span>
-                          <span className="text-[#555]">/</span>
-                          <span className="text-[#D4AF37] font-bold">{v.size}</span>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3 text-[#AAA]">{v.sku}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-white">
-                        {v.stockQuantity}
-                      </td>
-                      <td className="py-2.5 px-3 text-right text-[#777]">
-                        {v.lowStockThreshold}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold ${
-                          v.status === 'IN STOCK' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/40' :
-                          v.status === 'LOW STOCK' ? 'bg-amber-950/40 text-amber-400 border border-amber-800/40' :
-                          'bg-red-950/40 text-red-400 border border-red-800/40'
-                        }`}>
-                          {v.status}
-                        </span>
-                      </td>
+            {/* Variant Table & Mobile Cards */}
+            <div className="border border-[#222]">
+              {/* Mobile Cards (< md) */}
+              <div className="block md:hidden divide-y divide-[#1C1C1C]">
+                {(product.variants || []).map((v) => (
+                  <div key={v.id} className="p-3.5 bg-[#0D0D0D] space-y-2 text-xs font-mono">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-white/20 shrink-0"
+                          style={{ backgroundColor: product.colours?.find(c => c.name === v.colour)?.code || '#000' }}
+                        />
+                        <span className="font-bold text-white">{v.colour}</span>
+                        <span className="text-[#555]">/</span>
+                        <span className="text-[#D4AF37] font-bold">{v.size}</span>
+                      </div>
+                      <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold ${
+                        v.status === 'IN STOCK' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/40' :
+                        v.status === 'LOW STOCK' ? 'bg-amber-950/40 text-amber-400 border border-amber-800/40' :
+                        'bg-red-950/40 text-red-400 border border-red-800/40'
+                      }`}>
+                        {v.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[#888] pt-1">
+                      <span>SKU: <strong className="text-white">{v.sku}</strong></span>
+                      <span>Stock: <strong className="text-white text-sm">{v.stockQuantity}</strong> (Alert &le; {v.lowStockThreshold})</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table (>= md) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[#161616] border-b border-[#262626] text-[10px] font-mono uppercase text-[#888]">
+                      <th className="py-2.5 px-3">Colour / Size</th>
+                      <th className="py-2.5 px-3">SKU Identifier</th>
+                      <th className="py-2.5 px-3 text-right">Available Stock</th>
+                      <th className="py-2.5 px-3 text-right">Threshold</th>
+                      <th className="py-2.5 px-3 text-center">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-[#1C1C1C] text-xs font-mono">
+                    {(product.variants || []).map((v) => (
+                      <tr key={v.id} className="hover:bg-[#151515] transition-colors">
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-3 h-3 rounded-full border border-white/20"
+                              style={{ backgroundColor: product.colours?.find(c => c.name === v.colour)?.code || '#000' }}
+                            />
+                            <span className="font-bold text-white">{v.colour}</span>
+                            <span className="text-[#555]">/</span>
+                            <span className="text-[#D4AF37] font-bold">{v.size}</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-[#AAA]">{v.sku}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-white">
+                          {v.stockQuantity}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-[#777]">
+                          {v.lowStockThreshold}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold ${
+                            v.status === 'IN STOCK' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/40' :
+                            v.status === 'LOW STOCK' ? 'bg-amber-950/40 text-amber-400 border border-amber-800/40' :
+                            'bg-red-950/40 text-red-400 border border-red-800/40'
+                          }`}>
+                            {v.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 

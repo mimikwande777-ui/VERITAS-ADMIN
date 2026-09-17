@@ -1508,12 +1508,12 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
 
                 {/* Custom Colour Creator Panel */}
                 {isCustomColorMode && (
-                  <div className="pt-4 border-t border-[#262626] bg-[#0D0D0D] p-3.5 rounded-xs space-y-3 animate-in fade-in">
+                  <div className="pt-4 border-t border-[#262626] bg-[#0D0D0D] p-3 sm:p-3.5 rounded-xs space-y-3 animate-in fade-in">
                     <span className="text-xs font-mono font-bold uppercase text-[#D4AF37] block">
                       Create Custom Colourway
                     </span>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="flex-1 min-w-[160px]">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full min-w-0">
+                      <div className="flex-1 min-w-0">
                         <input
                           type="text"
                           value={customColorName}
@@ -1522,7 +1522,7 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                           className="w-full bg-[#141414] border border-[#333] px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-[#D4AF37]"
                         />
                       </div>
-                      <div className="flex items-center gap-2 bg-[#141414] border border-[#333] px-3 py-1.5">
+                      <div className="flex items-center gap-2 bg-[#141414] border border-[#333] px-3 py-1.5 shrink-0">
                         <input
                           type="color"
                           value={customColorHex}
@@ -1534,7 +1534,7 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                       <button
                         type="button"
                         onClick={handleAddCustomColour}
-                        className="px-4 py-2 bg-[#D4AF37] hover:bg-[#B3932F] text-[#0A0A0A] text-xs font-mono font-bold uppercase tracking-wider transition-colors rounded-xs"
+                        className="px-4 py-2 bg-[#D4AF37] hover:bg-[#B3932F] text-[#0A0A0A] text-xs font-mono font-bold uppercase tracking-wider transition-colors rounded-xs shrink-0"
                       >
                         Save Colour
                       </button>
