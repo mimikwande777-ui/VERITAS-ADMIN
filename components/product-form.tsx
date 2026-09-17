@@ -26,7 +26,11 @@ import {
   Star,
   Copy,
   Info,
-  Shield
+  Shield,
+  RotateCcw,
+  EyeOff,
+  Archive,
+  Loader2
 } from 'lucide-react';
 import { 
   ProductItem, 
@@ -237,6 +241,7 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
 
   // UI state
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -391,25 +396,37 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
   };
 
   const handleFileUploadSim = async (e: React.ChangeEvent<HTMLInputElement>, colourName: string) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
 
-    const file = files[0];
+    setIsUploadingMedia(true);
     try {
-      const previewUrl = URL.createObjectURL(file);
-      const newImg: ProductMediaImage = {
-        id: getUniqueId('img'),
-        url: previewUrl,
-        role: imageRoleInput,
-        isPrimary: images.filter(img => img.colourName === colourName).length === 0,
-        alt: `${name} photo`,
-        file: file,
-        colourName: colourName
-      };
-      setImages(prev => [...prev, newImg]);
-      showToast(`Attached image "${file.name}" as ${imageRoleInput}`);
+      const selectedFiles = Array.from(fileList);
+      const newImagesList: ProductMediaImage[] = [];
+
+      for (const file of selectedFiles) {
+        // Create local preview URL immediately
+        const previewUrl = URL.createObjectURL(file);
+        const newImg: ProductMediaImage = {
+          id: getUniqueId('img'),
+          url: previewUrl,
+          role: imageRoleInput,
+          isPrimary: images.filter(img => img.colourName === colourName).length === 0 && newImagesList.length === 0,
+          alt: `${name || 'Product'} photo`,
+          file: file,
+          colourName: colourName
+        };
+        newImagesList.push(newImg);
+      }
+
+      setImages(prev => [...prev, ...newImagesList]);
+      showToast(`Added ${newImagesList.length} image(s) for ${colourName}`);
     } catch (err) {
-      showToast('Failed to process image attachment');
+      showToast('Failed to process image attachment. Please try again.');
+    } finally {
+      setIsUploadingMedia(false);
+      // Reset the input value so selecting the same file again works
+      e.target.value = '';
     }
   };
 
@@ -472,19 +489,28 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
   const validateProduct = (forPublish: boolean): boolean => {
     const errors: string[] = [];
 
-    if (!name.trim()) errors.push('Product Name is required.');
+    if (!name.trim()) {
+      errors.push('Product name required');
+    }
     
     if (forPublish) {
-      if (numSellingPrice <= 0) errors.push('Selling Price must be greater than R0.00 to publish.');
-      if (!category.trim()) errors.push('Category must be specified to publish.');
-      if (variants.length === 0) {
-        errors.push('Product must have at least one variant before publishing.');
+      if (numSellingPrice <= 0) {
+        errors.push('Selling price required (must be greater than R0.00)');
+      }
+      if (!category.trim()) {
+        errors.push('Category required');
+      }
+      if (!collection.trim()) {
+        errors.push('Collection required');
       }
       if (images.length === 0) {
-        errors.push('Product must have at least one product image before publishing.');
+        errors.push('At least one image required');
+      }
+      if (variants.length === 0) {
+        errors.push('At least one variant required');
       }
       if (salesMode === 'preorder' && !releaseAt) {
-        errors.push('Expected Release Date is required before publishing a Preorder product.');
+        errors.push('Release date required for preorder');
       }
     }
 
@@ -496,8 +522,16 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
   const handleSaveAction = async (targetStatus: ProductStatus, targetPublished: boolean) => {
     const isValid = validateProduct(targetPublished);
     if (!isValid) {
-      showToast('Please resolve validation errors before continuing.');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      showToast('Cannot publish yet: Please resolve missing required fields.');
+      setTimeout(() => {
+        const errorEl = document.getElementById('form-validation-summary');
+        if (errorEl) {
+          errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          errorEl.focus();
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }, 50);
       return;
     }
 
@@ -683,15 +717,27 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
 
       {/* VALIDATION ERRORS BANNER */}
       {validationErrors.length > 0 && (
-        <div className="bg-red-950/40 border border-red-800/60 p-4 rounded-sm flex items-start gap-3 text-red-300 animate-in fade-in">
-          <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <h4 className="text-xs font-bold uppercase font-mono tracking-wider text-red-200">
-              Please fix the following validation requirements:
-            </h4>
-            <ul className="list-disc list-inside text-xs mt-1.5 space-y-0.5 text-red-300 font-mono">
+        <div 
+          id="form-validation-summary"
+          tabIndex={-1}
+          className="bg-red-950/60 border-2 border-red-600/80 p-5 rounded-sm flex items-start gap-4 text-red-200 animate-in fade-in slide-in-from-top-2 shadow-2xl focus:outline-none ring-2 ring-red-500/30"
+        >
+          <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold uppercase font-mono tracking-wider text-white flex items-center gap-2">
+              <span>CANNOT PUBLISH YET</span>
+              <span className="text-[10px] bg-red-900/60 text-red-300 px-2 py-0.5 rounded border border-red-700/60">
+                {validationErrors.length} {validationErrors.length === 1 ? 'REQUIREMENT' : 'REQUIREMENTS'}
+              </span>
+            </h3>
+            <p className="text-xs text-red-300 font-mono mt-1 mb-3">
+              The following required fields must be completed before this product can be published:
+            </p>
+            <ul className="list-disc list-inside text-xs space-y-1.5 text-red-100 font-mono">
               {validationErrors.map((err, idx) => (
-                <li key={idx}>{err}</li>
+                <li key={idx} className="font-medium tracking-wide">
+                  {err}
+                </li>
               ))}
             </ul>
           </div>
@@ -1108,7 +1154,7 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                     Formula: (Price - Cost) / Price
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="bg-[#0D0D0D] border border-[#222] p-3">
                     <span className="text-[10px] uppercase font-mono text-[#777] block">Profit Per Unit</span>
                     <div className="text-lg font-bold font-mono text-emerald-400 mt-0.5">
@@ -1301,64 +1347,130 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
 
                      {/* VARIANTS MATRIX FOR SELECTED COLOUR */}
                      {variants.filter(v => v.colour === selectedColourName).length > 0 && (
-                        <div className="overflow-x-auto border border-[#333]">
-                           <table className="w-full text-left border-collapse">
-                             <thead>
-                               <tr className="bg-[#111] border-b border-[#333] text-[10px] font-mono uppercase text-[#888]">
-                                 <th className="py-2.5 px-3">Size</th>
-                                 <th className="py-2.5 px-3">SKU</th>
-                                 <th className="py-2.5 px-3 text-right">Stock</th>
-                                 <th className="py-2.5 px-3 text-right">Low Alert</th>
-                                 <th className="py-2.5 px-3 text-center">Status</th>
-                                 <th className="py-2.5 px-3 text-center"></th>
-                               </tr>
-                             </thead>
-                             <tbody className="divide-y divide-[#1F1F1F] text-xs font-mono">
-                               {variants.filter(v => v.colour === selectedColourName).map(v => (
-                                 <tr key={v.id} className="hover:bg-[#111] transition-colors bg-[#0A0A0A]">
-                                   <td className="py-2.5 px-3 font-bold text-[#D4AF37]">{v.size}</td>
-                                   <td className="py-2.5 px-3">
-                                      <input
-                                        type="text"
-                                        value={v.sku}
-                                        onChange={(e) => handleVariantChange(v.id, 'sku', e.target.value)}
-                                        className="bg-transparent border-b border-[#333] px-1 py-1 text-[11px] font-mono text-white focus:outline-none focus:border-[#D4AF37] w-full max-w-[180px]"
-                                      />
-                                   </td>
-                                   <td className="py-2.5 px-3 text-right">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        value={v.stockQuantity}
-                                        onChange={(e) => handleVariantChange(v.id, 'stockQuantity', parseInt(e.target.value) || 0)}
-                                        className="bg-[#151515] border border-[#333] px-2 py-1 font-bold text-white text-right focus:outline-none focus:border-[#D4AF37] w-20"
-                                      />
-                                   </td>
-                                   <td className="py-2.5 px-3 text-right">
-                                      <input
-                                        type="number"
-                                        min="1"
-                                        value={v.lowStockThreshold}
-                                        onChange={(e) => handleVariantChange(v.id, 'lowStockThreshold', parseInt(e.target.value) || 5)}
-                                        className="bg-[#151515] border border-[#333] px-2 py-1 text-[11px] text-[#AAA] text-right focus:outline-none focus:border-[#D4AF37] w-16"
-                                      />
-                                   </td>
-                                   <td className="py-2.5 px-3 text-center">
-                                      <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold ${
-                                        v.status === 'IN STOCK' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/40' :
-                                        v.status === 'LOW STOCK' ? 'bg-amber-950/40 text-amber-400 border border-amber-800/40' :
-                                        'bg-red-950/40 text-red-400 border border-red-800/40'
-                                      }`}>
-                                        {v.status}
-                                      </span>
-                                   </td>
-                                   <td className="py-2.5 px-3 text-right">
-                                      <button type="button" onClick={() => handleToggleVariantSize(selectedColourName, v.size)} className="text-[#666] hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
-                                   </td>
+                        <div>
+                          {/* Desktop Table View */}
+                          <div className="hidden md:block overflow-x-auto border border-[#333]">
+                             <table className="w-full text-left border-collapse">
+                               <thead>
+                                 <tr className="bg-[#111] border-b border-[#333] text-[10px] font-mono uppercase text-[#888]">
+                                   <th className="py-2.5 px-3">Size</th>
+                                   <th className="py-2.5 px-3">SKU</th>
+                                   <th className="py-2.5 px-3 text-right">Stock</th>
+                                   <th className="py-2.5 px-3 text-right">Low Alert</th>
+                                   <th className="py-2.5 px-3 text-center">Status</th>
+                                   <th className="py-2.5 px-3 text-center"></th>
                                  </tr>
-                               ))}
-                             </tbody>
-                           </table>
+                               </thead>
+                               <tbody className="divide-y divide-[#1F1F1F] text-xs font-mono">
+                                 {variants.filter(v => v.colour === selectedColourName).map(v => (
+                                   <tr key={v.id} className="hover:bg-[#111] transition-colors bg-[#0A0A0A]">
+                                     <td className="py-2.5 px-3 font-bold text-[#D4AF37]">{v.size}</td>
+                                     <td className="py-2.5 px-3">
+                                        <input
+                                          type="text"
+                                          value={v.sku}
+                                          onChange={(e) => handleVariantChange(v.id, 'sku', e.target.value)}
+                                          className="bg-transparent border-b border-[#333] px-1 py-1 text-[11px] font-mono text-white focus:outline-none focus:border-[#D4AF37] w-full max-w-[180px]"
+                                        />
+                                     </td>
+                                     <td className="py-2.5 px-3 text-right">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={v.stockQuantity}
+                                          onChange={(e) => handleVariantChange(v.id, 'stockQuantity', parseInt(e.target.value) || 0)}
+                                          className="bg-[#151515] border border-[#333] px-2 py-1 font-bold text-white text-right focus:outline-none focus:border-[#D4AF37] w-20"
+                                        />
+                                     </td>
+                                     <td className="py-2.5 px-3 text-right">
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          value={v.lowStockThreshold}
+                                          onChange={(e) => handleVariantChange(v.id, 'lowStockThreshold', parseInt(e.target.value) || 5)}
+                                          className="bg-[#151515] border border-[#333] px-2 py-1 text-[11px] text-[#AAA] text-right focus:outline-none focus:border-[#D4AF37] w-16"
+                                        />
+                                     </td>
+                                     <td className="py-2.5 px-3 text-center">
+                                        <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold ${
+                                          v.status === 'IN STOCK' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/40' :
+                                          v.status === 'LOW STOCK' ? 'bg-amber-950/40 text-amber-400 border border-amber-800/40' :
+                                          'bg-red-950/40 text-red-400 border border-red-800/40'
+                                        }`}>
+                                          {v.status}
+                                        </span>
+                                     </td>
+                                     <td className="py-2.5 px-3 text-right">
+                                        <button type="button" onClick={() => handleToggleVariantSize(selectedColourName, v.size)} className="text-[#666] hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
+                                     </td>
+                                   </tr>
+                                 ))}
+                               </tbody>
+                             </table>
+                          </div>
+
+                          {/* Mobile Responsive Cards View */}
+                          <div className="block md:hidden space-y-3">
+                            {variants.filter(v => v.colour === selectedColourName).map(v => (
+                              <div key={v.id} className="bg-[#0D0D0D] border border-[#2B2B2B] p-3.5 rounded-sm space-y-3">
+                                <div className="flex items-center justify-between border-b border-[#222] pb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-mono font-bold text-[#D4AF37] px-2 py-0.5 bg-[#1A1A1A] border border-[#333] rounded-xs">
+                                      Size {v.size}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
+                                      v.status === 'IN STOCK' ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40' :
+                                      v.status === 'LOW STOCK' ? 'bg-amber-950/60 text-amber-400 border border-amber-800/40' :
+                                      'bg-red-950/60 text-red-400 border border-red-800/40'
+                                    }`}>
+                                      {v.status}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleVariantSize(selectedColourName, v.size)}
+                                    className="text-[#666] hover:text-red-400 p-1.5 transition-colors"
+                                    title="Delete Variant"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+
+                                <div>
+                                  <label className="block text-[10px] font-mono uppercase text-[#888] mb-1">SKU</label>
+                                  <input
+                                    type="text"
+                                    value={v.sku}
+                                    onChange={(e) => handleVariantChange(v.id, 'sku', e.target.value)}
+                                    className="w-full bg-[#141414] border border-[#333] px-2.5 py-2 text-xs font-mono text-white focus:outline-none focus:border-[#D4AF37]"
+                                  />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-[10px] font-mono uppercase text-[#888] mb-1">Stock Quantity</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={v.stockQuantity}
+                                      onChange={(e) => handleVariantChange(v.id, 'stockQuantity', parseInt(e.target.value) || 0)}
+                                      className="w-full bg-[#141414] border border-[#333] px-2.5 py-2 text-xs font-mono font-bold text-white focus:outline-none focus:border-[#D4AF37]"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-mono uppercase text-[#888] mb-1">Low Alert Qty</label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={v.lowStockThreshold}
+                                      onChange={(e) => handleVariantChange(v.id, 'lowStockThreshold', parseInt(e.target.value) || 5)}
+                                      className="w-full bg-[#141414] border border-[#333] px-2.5 py-2 text-xs font-mono text-[#AAA] focus:outline-none focus:border-[#D4AF37]"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                      )}
                   </div>
@@ -1378,42 +1490,54 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
                   
                   <div className="p-4 bg-[#151515]">
                     {/* Add Image Controls */}
-                    <div className="flex flex-wrap items-center gap-3 mb-6 bg-[#0A0A0A] p-3 border border-[#222]">
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 px-3 py-1.5 bg-[#222] hover:bg-[#333] border border-[#444] text-xs font-mono uppercase text-white cursor-pointer transition-colors">
-                          <Upload className="w-3.5 h-3.5" />
-                          <span>Upload File</span>
-                          <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUploadSim(e, selectedColourName)} />
+                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 mb-6 bg-[#0A0A0A] p-3.5 border border-[#222]">
+                      <div className="flex items-center gap-2">
+                        <label className="min-h-[44px] flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 bg-[#222] hover:bg-[#333] active:bg-[#444] border border-[#444] text-xs font-mono uppercase text-white cursor-pointer transition-colors rounded-xs">
+                          {isUploadingMedia ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-[#D4AF37]" />
+                          ) : (
+                            <Upload className="w-4 h-4 text-[#D4AF37]" />
+                          )}
+                          <span>{isUploadingMedia ? 'Uploading...' : 'Upload Photos'}</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            multiple 
+                            disabled={isUploadingMedia}
+                            className="hidden" 
+                            onChange={(e) => handleFileUploadSim(e, selectedColourName)} 
+                          />
                         </label>
-                        <span className="text-[10px] font-mono text-[#666]">OR URL:</span>
                       </div>
                       
-                      <div className="flex-1 flex items-center gap-2 min-w-[280px]">
+                      <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 min-w-0">
                         <input
                           type="text"
                           value={imageUrlInput}
                           onChange={(e) => setImageUrlInput(e.target.value)}
-                          placeholder="https://..."
-                          className="flex-1 bg-[#111] border border-[#333] px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#D4AF37]"
+                          placeholder="Or paste image URL (https://...)"
+                          className="flex-1 min-h-[40px] bg-[#111] border border-[#333] px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#D4AF37]"
                         />
-                        <select
-                          value={imageRoleInput}
-                          onChange={(e) => setImageRoleInput(e.target.value as any)}
-                          className="bg-[#111] border border-[#333] px-2 py-1.5 text-xs text-white focus:outline-none focus:border-[#D4AF37]"
-                        >
-                          <option value="front">Front View</option>
-                          <option value="back">Back View</option>
-                          <option value="model">Model View</option>
-                          <option value="detail">Detail View</option>
-                          <option value="gallery">Gallery</option>
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => handleAddImageFromUrl(selectedColourName)}
-                          className="px-3 py-1.5 bg-[#D4AF37] hover:bg-[#B3932F] text-[#0A0A0A] text-xs font-bold uppercase"
-                        >
-                          Add
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={imageRoleInput}
+                            onChange={(e) => setImageRoleInput(e.target.value as any)}
+                            className="flex-1 sm:flex-initial min-h-[40px] bg-[#111] border border-[#333] px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-[#D4AF37]"
+                          >
+                            <option value="front">Front View</option>
+                            <option value="back">Back View</option>
+                            <option value="model">Model View</option>
+                            <option value="detail">Detail View</option>
+                            <option value="gallery">Gallery</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleAddImageFromUrl(selectedColourName)}
+                            className="min-h-[40px] px-4 py-1.5 bg-[#D4AF37] hover:bg-[#B3932F] text-[#0A0A0A] text-xs font-bold font-mono uppercase rounded-xs"
+                          >
+                            Add
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -1893,6 +2017,143 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
 
         </div>
 
+      </div>
+
+      {/* ==================================================
+          STICKY MOBILE ACTION BAR (Fixed Bottom for Phones)
+          ================================================== */}
+      <div 
+        id="sticky-mobile-action-bar"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0C0C0C]/95 backdrop-blur-md border-t border-[#262626] px-3.5 py-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] shadow-2xl transition-all"
+      >
+        <div className="max-w-md mx-auto flex items-center justify-between gap-2">
+          {status === 'ARCHIVED' ? (
+            <>
+              <button
+                type="button"
+                id="mobile-action-restore-draft"
+                onClick={() => {
+                  setStatus('DRAFT');
+                  setPublished(false);
+                  handleSaveAction('DRAFT', false);
+                }}
+                disabled={isSubmitting || !isOnline}
+                className="min-h-[44px] flex-1 px-3 py-2 bg-emerald-950/70 hover:bg-emerald-900/80 active:bg-emerald-900 border border-emerald-500 text-emerald-300 font-mono font-bold text-xs uppercase tracking-wider rounded-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] disabled:opacity-50"
+              >
+                <RotateCcw className="w-4 h-4" />
+                {isSubmitting ? 'Restoring...' : 'Restore to Draft'}
+              </button>
+
+              <button
+                type="button"
+                id="mobile-action-save-archived"
+                onClick={() => handleSaveAction('ARCHIVED', false)}
+                disabled={isSubmitting || !isOnline}
+                className="min-h-[44px] px-4 py-2 bg-[#1A1A1A] hover:bg-[#252525] active:bg-[#333] border border-[#333] text-white font-mono font-bold text-xs uppercase tracking-wider rounded-xs transition-all active:scale-[0.98] disabled:opacity-50"
+              >
+                {isSubmitting ? 'Saving...' : 'Save'}
+              </button>
+            </>
+          ) : published ? (
+            <>
+              <button
+                type="button"
+                id="mobile-action-save-published"
+                onClick={() => handleSaveAction('ACTIVE', true)}
+                disabled={isSubmitting || !isOnline}
+                className="min-h-[44px] flex-1 px-3 py-2 bg-[#1C1C1C] hover:bg-[#262626] active:bg-[#333] border border-[#3A3A3A] text-white font-mono font-bold text-xs uppercase tracking-wider rounded-xs transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                <Save className="w-3.5 h-3.5 text-[#D4AF37]" />
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
+              </button>
+
+              {canPublish && (
+                <button
+                  type="button"
+                  id="mobile-action-unpublish"
+                  onClick={() => {
+                    setPublished(false);
+                    setStatus('DRAFT');
+                    handleSaveAction('DRAFT', false);
+                  }}
+                  disabled={isSubmitting || !isOnline}
+                  className="min-h-[44px] flex-1 px-3 py-2 bg-amber-950/40 hover:bg-amber-900/50 active:bg-amber-900/70 border border-amber-600/50 text-amber-300 font-mono font-bold text-xs uppercase tracking-wider rounded-xs transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  <EyeOff className="w-3.5 h-3.5" />
+                  {isSubmitting ? 'Updating...' : 'Unpublish'}
+                </button>
+              )}
+
+              <button
+                type="button"
+                id="mobile-action-archive"
+                onClick={() => {
+                  setStatus('ARCHIVED');
+                  setPublished(false);
+                  handleSaveAction('ARCHIVED', false);
+                }}
+                disabled={isSubmitting || !isOnline}
+                className="min-h-[44px] px-3 py-2 bg-[#141414] hover:bg-[#202020] active:bg-red-950/40 border border-[#2B2B2B] text-[#888] hover:text-red-400 font-mono text-xs uppercase rounded-xs transition-all active:scale-[0.98] disabled:opacity-50"
+                title="Archive Product"
+              >
+                <Archive className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                id="mobile-action-save-draft"
+                onClick={() => handleSaveAction('DRAFT', false)}
+                disabled={isSubmitting || !isOnline}
+                className="min-h-[44px] flex-1 px-3 py-2 bg-[#1A1A1A] hover:bg-[#222] active:bg-[#2A2A2A] border border-[#333] text-[#CCC] font-mono font-bold text-xs uppercase tracking-wider rounded-xs transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                <Save className="w-3.5 h-3.5 text-[#888]" />
+                {isSubmitting ? 'Saving...' : 'Save Draft'}
+              </button>
+
+              {canPublish ? (
+                <button
+                  type="button"
+                  id="mobile-action-publish-product"
+                  onClick={() => handleSaveAction('ACTIVE', true)}
+                  disabled={isSubmitting || !isOnline}
+                  className="min-h-[44px] flex-[1.3] px-3.5 py-2 bg-[#D4AF37] hover:bg-[#C29E30] active:bg-[#A38224] text-[#0A0A0A] font-mono font-bold text-xs uppercase tracking-wider rounded-xs transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-lg shadow-[#D4AF37]/20"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  {isSubmitting ? 'Publishing...' : 'Publish Product'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  id="mobile-action-save-product"
+                  onClick={() => handleSaveAction('DRAFT', false)}
+                  disabled={isSubmitting || !isOnline}
+                  className="min-h-[44px] flex-1 px-3 py-2 bg-[#1E1E1E] border border-[#333] text-white font-mono font-bold text-xs uppercase rounded-xs"
+                >
+                  {isSubmitting ? 'Saving...' : 'Save Product'}
+                </button>
+              )}
+
+              {mode === 'edit' && initialProduct && (
+                <button
+                  type="button"
+                  id="mobile-action-archive-draft"
+                  onClick={() => {
+                    setStatus('ARCHIVED');
+                    setPublished(false);
+                    handleSaveAction('ARCHIVED', false);
+                  }}
+                  disabled={isSubmitting || !isOnline}
+                  className="min-h-[44px] px-3 py-2 bg-[#141414] hover:bg-[#202020] active:bg-red-950/40 border border-[#2B2B2B] text-[#888] hover:text-red-400 font-mono text-xs uppercase rounded-xs transition-all active:scale-[0.98] disabled:opacity-50"
+                  title="Archive Product"
+                >
+                  <Archive className="w-4 h-4" />
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
