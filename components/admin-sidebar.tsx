@@ -19,7 +19,9 @@ import {
   ExternalLink, 
   LogOut, 
   Lock, 
-  Unlock 
+  Unlock,
+  TrendingUp,
+  Bell
 } from 'lucide-react';
 import { useAdminAuth } from '@/lib/auth-context';
 import { PWAInstallButton } from '@/components/pwa-install-button';
@@ -35,6 +37,8 @@ interface NavItemConfig {
 
 const ALL_NAVIGATION_ITEMS: NavItemConfig[] = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+  { name: 'Analytics', href: '/admin/analytics', icon: TrendingUp, requiredPermission: 'canViewSales' },
+  { name: 'Notifications', href: '/admin/notifications', icon: Bell },
   { name: 'Products', href: '/admin/products', icon: ShoppingBag, requiredPermission: 'canViewProducts' },
   { name: 'Inventory', href: '/admin/inventory', icon: Package, requiredPermission: 'canViewInventory' },
   { name: 'Orders & OTC', href: '/admin/orders', icon: Tags, requiredPermission: 'canViewOrders' },

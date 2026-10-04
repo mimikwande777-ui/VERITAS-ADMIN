@@ -49,6 +49,9 @@ export default function InventoryPage() {
   const [rowSavingId, setRowSavingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [productFilter, setProductFilter] = useState('all');
+  const [sizeFilter, setSizeFilter] = useState('all');
+  const [colorFilter, setColorFilter] = useState('all');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isAddingVariant, setIsAddingVariant] = useState(false);
 
@@ -392,6 +395,11 @@ export default function InventoryPage() {
     showToast('Inventory CSV exported.');
   };
 
+  // Extract unique options for dropdown filters
+  const uniqueProducts = Array.from(new Set(items.map(i => i.product))).filter(Boolean);
+  const uniqueSizes = Array.from(new Set(items.map(i => i.size))).filter(Boolean);
+  const uniqueColors = Array.from(new Set(items.map(i => i.color))).filter(Boolean);
+
   const filteredItems = items.filter(item => {
     const matchesSearch = item.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -403,7 +411,11 @@ export default function InventoryPage() {
     if (statusFilter === 'low_stock') matchesStatus = item.status === 'Low Stock';
     if (statusFilter === 'out_of_stock') matchesStatus = item.status === 'Out of Stock';
 
-    return matchesSearch && matchesStatus;
+    let matchesProduct = productFilter === 'all' || item.product === productFilter;
+    let matchesSize = sizeFilter === 'all' || item.size === sizeFilter;
+    let matchesColor = colorFilter === 'all' || item.color === colorFilter;
+
+    return matchesSearch && matchesStatus && matchesProduct && matchesSize && matchesColor;
   });
 
   const totalVariants = items.length;
@@ -516,16 +528,49 @@ export default function InventoryPage() {
             />
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
             <select 
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full sm:w-auto min-h-[44px] px-3 py-2 bg-[#0A0A0A] border border-[#333] text-base md:text-xs text-white uppercase tracking-wider focus:outline-none focus:border-[#D4AF37] font-mono rounded-none"
+              className="min-h-[44px] px-3 py-2 bg-[#0A0A0A] border border-[#333] text-base md:text-xs text-white uppercase tracking-wider focus:outline-none focus:border-[#D4AF37] font-mono rounded-none"
             >
-              <option value="all">All Availability States</option>
-              <option value="in_stock">In Stock Only</option>
-              <option value="low_stock">Low Stock Only</option>
-              <option value="out_of_stock">Out of Stock Only</option>
+              <option value="all">All States</option>
+              <option value="in_stock">In Stock</option>
+              <option value="low_stock">Low Stock</option>
+              <option value="out_of_stock">Out of Stock</option>
+            </select>
+
+            <select 
+              value={productFilter}
+              onChange={(e) => setProductFilter(e.target.value)}
+              className="min-h-[44px] px-3 py-2 bg-[#0A0A0A] border border-[#333] text-base md:text-xs text-white uppercase tracking-wider focus:outline-none focus:border-[#D4AF37] font-mono rounded-none max-w-[150px] truncate"
+            >
+              <option value="all">All Products</option>
+              {uniqueProducts.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+
+            <select 
+              value={sizeFilter}
+              onChange={(e) => setSizeFilter(e.target.value)}
+              className="min-h-[44px] px-3 py-2 bg-[#0A0A0A] border border-[#333] text-base md:text-xs text-white uppercase tracking-wider focus:outline-none focus:border-[#D4AF37] font-mono rounded-none"
+            >
+              <option value="all">All Sizes</option>
+              {uniqueSizes.map(s => (
+                <option key={s} value={s}>Size {s}</option>
+              ))}
+            </select>
+
+            <select 
+              value={colorFilter}
+              onChange={(e) => setColorFilter(e.target.value)}
+              className="min-h-[44px] px-3 py-2 bg-[#0A0A0A] border border-[#333] text-base md:text-xs text-white uppercase tracking-wider focus:outline-none focus:border-[#D4AF37] font-mono rounded-none"
+            >
+              <option value="all">All Colours</option>
+              {uniqueColors.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
             </select>
           </div>
         </div>

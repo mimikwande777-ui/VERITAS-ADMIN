@@ -26,7 +26,8 @@ import {
   Unlock,
   Lock,
   Calendar,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Kanban
 } from 'lucide-react';
 import { OrderRecord } from '@/lib/mock-data';
 import { 
@@ -385,6 +386,13 @@ INTERNAL TRACK:   ${order.trackingNumber}
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Link
+            href="/admin/orders/kanban"
+            className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-[#D4AF37] hover:bg-[#B3932F] text-black font-bold uppercase text-xs font-mono rounded-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+          >
+            <Kanban className="w-4 h-4 text-black" />
+            <span>Kanban Workflow</span>
+          </Link>
           <button
             type="button"
             onClick={loadOrders}

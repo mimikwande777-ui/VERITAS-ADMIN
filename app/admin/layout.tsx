@@ -11,7 +11,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, Search, X, Lock, Unlock, LogOut, ShieldCheck } from 'lucide-react';
+import { Menu, Search, X, Lock, Unlock, LogOut, ShieldCheck, Command } from 'lucide-react';
 import { AdminSidebar } from '@/components/admin-sidebar';
 import { AdminAuthProvider, useAdminAuth } from '@/lib/auth-context';
 import { AdminUnlockModal } from '@/components/admin-unlock-modal';
@@ -19,13 +19,23 @@ import { PWAOfflineBanner } from '@/components/pwa-offline-banner';
 import { PWAUpdateBanner } from '@/components/pwa-update-banner';
 import { PWAInstallButton } from '@/components/pwa-install-button';
 import { AdminMobileBottomNav } from '@/components/admin-mobile-bottom-nav';
+import { AdminCommandPalette } from '@/components/admin-command-palette';
+import { AdminNotificationBell } from '@/components/admin-notification-bell';
 
 function AdminLayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   const { user, role, isAuthenticated, openUnlockModal, signOut } = useAdminAuth();
+
+  // Custom event listener for opening command palette
+  useEffect(() => {
+    const handleOpenPalette = () => setIsCommandPaletteOpen(true);
+    window.addEventListener('veritas_open_command_palette', handleOpenPalette);
+    return () => window.removeEventListener('veritas_open_command_palette', handleOpenPalette);
+  }, []);
 
   // 1. If user navigates to /admin/login directly, redirect immediately to /admin/dashboard
   useEffect(() => {
@@ -40,7 +50,11 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
 
   // Determine current section label for header display
   let sectionLabel = 'Dashboard';
-  if (pathname?.startsWith('/admin/settings')) {
+  if (pathname?.startsWith('/admin/analytics')) {
+    sectionLabel = 'Store Analytics & Funnel';
+  } else if (pathname?.startsWith('/admin/notifications')) {
+    sectionLabel = 'Notification Centre';
+  } else if (pathname?.startsWith('/admin/settings')) {
     sectionLabel = 'System Settings';
   } else if (pathname?.startsWith('/admin/discounts')) {
     sectionLabel = 'Discounts & Promotions';
@@ -141,17 +155,23 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
           </div>
           
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-            {/* Desktop Search Field */}
-            <div className="bg-[#151515] px-3 py-1.5 rounded border border-[#262626] text-xs text-[#888] w-40 sm:w-56 hidden md:flex items-center gap-2 focus-within:border-[#D4AF37] focus-within:ring-1 focus-within:ring-[#D4AF37]/50 transition-all">
-              <Search className="w-3.5 h-3.5 text-[#666]" />
-              <input
-                id="search-field"
-                className="w-full bg-transparent border-none focus:outline-none text-white placeholder-[#555] text-xs"
-                placeholder="Search orders, SKU..."
-                type="search"
-                name="search"
-              />
-            </div>
+            {/* Command Palette Search Trigger Button */}
+            <button
+              type="button"
+              onClick={() => setIsCommandPaletteOpen(true)}
+              className="bg-[#151515] hover:bg-[#1C1C1C] px-3 py-1.5 rounded border border-[#262626] hover:border-[#D4AF37]/50 text-xs text-[#888] hover:text-white w-40 sm:w-56 flex items-center justify-between transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-2 truncate">
+                <Search className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
+                <span className="truncate text-xs font-mono">Search / Commands...</span>
+              </div>
+              <kbd className="hidden sm:inline-flex items-center gap-0.5 text-[9px] font-mono text-[#777] bg-[#222] px-1.5 py-0.5 rounded border border-[#333]">
+                <Command className="w-2.5 h-2.5" /> K
+              </kbd>
+            </button>
+
+            {/* Admin Notification Bell */}
+            <AdminNotificationBell />
 
             {/* PWA Header Install Trigger */}
             <div className="hidden sm:block">
@@ -217,6 +237,12 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
 
         {/* ADMIN UNLOCK MODAL */}
         <AdminUnlockModal />
+
+        {/* COMMAND PALETTE MODAL */}
+        <AdminCommandPalette 
+          isOpen={isCommandPaletteOpen} 
+          onClose={() => setIsCommandPaletteOpen(false)} 
+        />
 
         {/* MOBILE BOTTOM NAVIGATION BAR */}
         <AdminMobileBottomNav onOpenMenu={() => setIsMobileMenuOpen(true)} />

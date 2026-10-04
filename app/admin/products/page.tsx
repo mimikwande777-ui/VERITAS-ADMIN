@@ -40,8 +40,9 @@ import {
   generateDeterministicId
 } from '@/lib/product-store';
 import { formatZAR } from '@/lib/utils';
-import { ImageIcon } from 'lucide-react';
+import { ImageIcon, Zap } from 'lucide-react';
 import { AdminAccessGuard } from '@/components/admin-access-guard';
+import { AdminQuickEditProduct } from '@/components/admin-quick-edit-product';
 
 export default function ProductsPage() {
   const router = useRouter();
@@ -51,6 +52,9 @@ export default function ProductsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [collectionFilter, setCollectionFilter] = useState<string>('all');
   const [notification, setNotification] = useState<string | null>(null);
+
+  const [quickEditProduct, setQuickEditProduct] = useState<ProductItem | null>(null);
+  const [isQuickEditOpen, setIsQuickEditOpen] = useState(false);
 
   const showToast = (msg: string) => {
     setNotification(msg);
@@ -657,6 +661,20 @@ export default function ProductsPage() {
                       {/* Actions */}
                       <td className="px-5 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                          {/* Quick Edit Drawer Trigger */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setQuickEditProduct(product);
+                              setIsQuickEditOpen(true);
+                            }}
+                            className="p-1.5 text-[#D4AF37] hover:bg-[#222] rounded transition-colors"
+                            title="Quick Edit Product"
+                          >
+                            <Zap className="w-3.5 h-3.5 text-[#D4AF37]" />
+                          </button>
+
                           {/* View Audit Overview */}
                           <Link 
                             href={`/admin/products/${product.id}`}
@@ -723,6 +741,19 @@ export default function ProductsPage() {
           </div>
         </div>
       </div>
+
+      {/* QUICK EDIT DRAWER */}
+      <AdminQuickEditProduct
+        product={quickEditProduct}
+        isOpen={isQuickEditOpen}
+        onClose={() => setIsQuickEditOpen(false)}
+        onSaved={() => {
+          showToast('Product updated!');
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('veritas_products_updated'));
+          }
+        }}
+      />
     </div>
   </AdminAccessGuard>
   );
