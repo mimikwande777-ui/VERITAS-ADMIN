@@ -6,13 +6,13 @@
 -- 1. Table: public.admin_notifications
 CREATE TABLE IF NOT EXISTS public.admin_notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    type TEXT NOT NULL, -- 'paid_order', 'low_stock', 'out_of_stock', 'upcoming_release', 'payment_attention', 'delivery_failure'
-    severity TEXT NOT NULL DEFAULT 'info', -- 'high', 'medium', 'info'
+    type TEXT NOT NULL CHECK (type IN ('paid_order', 'low_stock', 'out_of_stock', 'upcoming_release', 'payment_attention', 'delivery_failure')),
+    severity TEXT NOT NULL DEFAULT 'info' CHECK (severity IN ('info', 'medium', 'high')),
     title TEXT NOT NULL,
     message TEXT,
     entity_type TEXT, -- 'order', 'inventory', 'product', 'system'
     entity_id UUID,
-    target_role TEXT, -- 'super_admin', 'operations', 'marketing', 'finance', or NULL (for all admins)
+    target_role TEXT CHECK (target_role IS NULL OR target_role IN ('super_admin', 'operations', 'marketing', 'finance')),
     metadata JSONB DEFAULT '{}'::jsonb,
     dedup_key TEXT UNIQUE, -- Ensures idempotent event generation (e.g., 'paid_order_<order_id>', 'out_of_stock_<variant_id>')
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -22,13 +22,12 @@ CREATE TABLE IF NOT EXISTS public.admin_notifications (
 CREATE INDEX IF NOT EXISTS idx_admin_notifications_created_at ON public.admin_notifications (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_admin_notifications_type ON public.admin_notifications (type);
 CREATE INDEX IF NOT EXISTS idx_admin_notifications_target_role ON public.admin_notifications (target_role);
-CREATE INDEX IF NOT EXISTS idx_admin_notifications_dedup_key ON public.admin_notifications (dedup_key);
 
 -- 2. Table: public.admin_notification_reads (Per-Admin Read State)
 CREATE TABLE IF NOT EXISTS public.admin_notification_reads (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     notification_id UUID NOT NULL REFERENCES public.admin_notifications(id) ON DELETE CASCADE,
-    admin_user_id UUID NOT NULL,
+    admin_user_id UUID NOT NULL REFERENCES public.admin_users(user_id) ON DELETE CASCADE,
     read_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uq_admin_notification_reads UNIQUE (notification_id, admin_user_id)
 );
@@ -67,7 +66,7 @@ CREATE POLICY "Service role manages notifications"
     USING (true)
     WITH CHECK (true);
 
--- Policy: Admins can view and insert their own notification read receipts
+-- Policy: Active Admins can manage their own notification read receipts
 DROP POLICY IF EXISTS "Admins manage their own read receipts" ON public.admin_notification_reads;
 CREATE POLICY "Admins manage their own read receipts"
     ON public.admin_notification_reads FOR ALL
@@ -76,11 +75,17 @@ CREATE POLICY "Admins manage their own read receipts"
         admin_user_id = auth.uid()
         AND EXISTS (
             SELECT 1 FROM public.admin_users au
-            WHERE au.user_id = auth.uid() AND au.is_active = true
+            WHERE au.user_id = auth.uid()
+              AND au.is_active = true
         )
     )
     WITH CHECK (
         admin_user_id = auth.uid()
+        AND EXISTS (
+            SELECT 1 FROM public.admin_users au
+            WHERE au.user_id = auth.uid()
+              AND au.is_active = true
+        )
     );
 
 -- Policy: Service role manages all read receipts
