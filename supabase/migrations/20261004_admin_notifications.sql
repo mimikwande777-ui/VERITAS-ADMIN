@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.admin_notifications (
     entity_id UUID,
     target_role TEXT CHECK (target_role IS NULL OR target_role IN ('super_admin', 'operations', 'marketing', 'finance')),
     metadata JSONB DEFAULT '{}'::jsonb,
-    dedup_key TEXT UNIQUE, -- Ensures idempotent event generation (e.g., 'paid_order_<order_id>', 'out_of_stock_<variant_id>')
+    dedup_key TEXT NOT NULL UNIQUE, -- Mandatory idempotency key (e.g., 'paid_order_<order_id>', 'out_of_stock_<variant_id>')
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -40,7 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_admin_notification_reads_notif ON public.admin_no
 ALTER TABLE public.admin_notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_notification_reads ENABLE ROW LEVEL SECURITY;
 
--- Policy: Authenticated Admins can view notifications matching their role or universal notifications
+-- Policy: Active Modern Admins can view notifications matching their role or universal notifications
 DROP POLICY IF EXISTS "Admins can view notifications" ON public.admin_notifications;
 CREATE POLICY "Admins can view notifications"
     ON public.admin_notifications FOR SELECT
@@ -50,6 +50,7 @@ CREATE POLICY "Admins can view notifications"
             SELECT 1 FROM public.admin_users au
             WHERE au.user_id = auth.uid()
               AND au.is_active = true
+              AND au.role IN ('super_admin', 'operations', 'marketing', 'finance')
               AND (
                   public.admin_notifications.target_role IS NULL
                   OR public.admin_notifications.target_role = au.role
@@ -66,7 +67,7 @@ CREATE POLICY "Service role manages notifications"
     USING (true)
     WITH CHECK (true);
 
--- Policy: Active Admins can manage their own notification read receipts
+-- Policy: Active Modern Admins can manage their own notification read receipts
 DROP POLICY IF EXISTS "Admins manage their own read receipts" ON public.admin_notification_reads;
 CREATE POLICY "Admins manage their own read receipts"
     ON public.admin_notification_reads FOR ALL
@@ -77,6 +78,7 @@ CREATE POLICY "Admins manage their own read receipts"
             SELECT 1 FROM public.admin_users au
             WHERE au.user_id = auth.uid()
               AND au.is_active = true
+              AND au.role IN ('super_admin', 'operations', 'marketing', 'finance')
         )
     )
     WITH CHECK (
@@ -85,6 +87,7 @@ CREATE POLICY "Admins manage their own read receipts"
             SELECT 1 FROM public.admin_users au
             WHERE au.user_id = auth.uid()
               AND au.is_active = true
+              AND au.role IN ('super_admin', 'operations', 'marketing', 'finance')
         )
     );
 
