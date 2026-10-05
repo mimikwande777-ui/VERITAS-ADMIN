@@ -21,7 +21,8 @@ import {
   ShieldCheck,
   Kanban,
   TrendingUp,
-  Bell
+  Bell,
+  Fingerprint
 } from 'lucide-react';
 import { getAdminAuthHeaders, useAdminAuth } from '@/lib/auth-context';
 import { hasPermission } from '@/lib/auth-types';
@@ -230,6 +231,14 @@ export function AdminCommandPalette({ isOpen, onClose }: CommandPaletteProps) {
       icon: UserCheck,
       href: '/admin/users',
       allowed: isSuper,
+    },
+    {
+      id: 'cmd-security-passkeys',
+      title: 'Manage Security & Biometric Passkeys (FIDO2)',
+      category: 'Security & Access',
+      icon: Fingerprint,
+      href: '/admin/settings/security',
+      allowed: true,
     },
     {
       id: 'cmd-manage-settings',

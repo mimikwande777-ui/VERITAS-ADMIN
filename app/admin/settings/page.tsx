@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, Check, Sparkles, Shield, Database, Globe, RefreshCw, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Save, Check, Sparkles, Shield, Database, Globe, RefreshCw, AlertCircle, Bell, ArrowRight, Fingerprint } from 'lucide-react';
 import { PWAInstallButton } from '@/components/pwa-install-button';
 import { AdminAccessGuard } from '@/components/admin-access-guard';
 
@@ -18,6 +19,7 @@ export default function SettingsPage() {
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [pushStatus, setPushStatus] = useState<'Enabled' | 'Disabled' | 'Unsupported' | 'Permission Blocked'>('Disabled');
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -39,6 +41,34 @@ export default function SettingsPage() {
         console.warn('Could not read settings from localStorage');
       }
     }, 0);
+
+    // Check push status safely without prompting
+    const detectPushStatus = async () => {
+      if (typeof window === 'undefined') return;
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        setPushStatus('Unsupported');
+        return;
+      }
+      if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
+        setPushStatus('Permission Blocked');
+        return;
+      }
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg?.pushManager) {
+          const sub = await reg.pushManager.getSubscription();
+          if (sub) {
+            setPushStatus('Enabled');
+            return;
+          }
+        }
+        setPushStatus('Disabled');
+      } catch {
+        setPushStatus('Disabled');
+      }
+    };
+    void detectPushStatus();
+
     return () => clearTimeout(timer);
   }, []);
 
@@ -216,6 +246,87 @@ export default function SettingsPage() {
 
           {/* PROGRESSIVE WEB APP (PWA) SYSTEM STATUS & INSTALLATION */}
           <PWAInstallButton variant="settings" />
+
+          {/* PASSKEY & BIOMETRIC SECURITY */}
+          <div className="bg-[#111] border border-[#1F1F1F] p-4 sm:p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4 border-b border-[#1F1F1F] pb-3">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-gray-200 font-mono flex items-center gap-2">
+                <Fingerprint className="w-4 h-4 text-[#D4AF37]" />
+                Security & Passkeys (WebAuthn)
+              </h2>
+              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded font-bold">
+                FIDO2 READY
+              </span>
+            </div>
+            <p className="text-xs text-[#888] font-mono mb-4 leading-relaxed">
+              Enroll hardware security keys, Apple Touch ID / Face ID, or Windows Hello for instant 1-tap administrative sign-in.
+            </p>
+            <Link
+              href="/admin/settings/security"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#181818] hover:bg-[#222] border border-[#333] hover:border-[#D4AF37] text-white text-xs font-bold uppercase font-mono transition-colors"
+            >
+              <span>Manage Enrolled Passkeys</span>
+              <ArrowRight className="w-3.5 h-3.5 text-[#D4AF37]" />
+            </Link>
+          </div>
+
+          {/* NOTIFICATIONS SECTION */}
+          <div className="bg-[#111] border border-[#1F1F1F] p-4 sm:p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-[#1F1F1F] pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded bg-[#161616] border border-[#2B2B2B] flex items-center justify-center text-[#D4AF37]">
+                  <Bell className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-white font-mono">
+                    NOTIFICATIONS
+                  </h2>
+                  <p className="text-[11px] text-[#888] font-mono">
+                    Manage Admin push notifications, alert categories and registered devices.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                {pushStatus === 'Enabled' && (
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2.5 py-1 rounded">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Enabled
+                  </span>
+                )}
+                {pushStatus === 'Disabled' && (
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-[#AAA] bg-[#181818] border border-[#333] px-2.5 py-1 rounded">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#666]" />
+                    Disabled
+                  </span>
+                )}
+                {pushStatus === 'Unsupported' && (
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-amber-400 bg-amber-950/60 border border-amber-800/50 px-2.5 py-1 rounded">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    Unsupported
+                  </span>
+                )}
+                {pushStatus === 'Permission Blocked' && (
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold text-red-400 bg-red-950/60 border border-red-800/50 px-2.5 py-1 rounded">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                    Permission Blocked
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <p className="text-xs text-[#888] font-mono mb-5 leading-relaxed">
+              Configure OS-level background Web Push alerts for new paid orders, low stock thresholds, out-of-stock anomalies, upcoming drop releases, and payment exceptions across all authorized devices.
+            </p>
+
+            <Link
+              href="/admin/settings/notifications"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#D4AF37] hover:bg-[#B3932F] active:scale-95 text-black text-xs font-bold uppercase font-mono tracking-wider transition-all cursor-pointer shadow-xs"
+            >
+              <span>Manage Notifications</span>
+              <ArrowRight className="w-4 h-4 text-black" />
+            </Link>
+          </div>
         </div>
 
         <div className="space-y-6">

@@ -61,6 +61,20 @@ export async function getOrRefreshAdminSession(request: NextRequest): Promise<Ad
         user = { id: fetchedUser.id, email: fetchedUser.email };
       }
     }
+
+    // Support WebAuthn Passkey session tokens
+    if (!user) {
+      try {
+        const decoded = Buffer.from(sbAccessToken, 'base64url').toString('utf-8');
+        const parsed = JSON.parse(decoded);
+        const now = Math.floor(Date.now() / 1000);
+        if (parsed.uid && parsed.exp && parsed.exp > now) {
+          user = { id: parsed.uid, email: parsed.email };
+        }
+      } catch {
+        // Not a JSON token
+      }
+    }
   }
 
   // STEP 2 — If access token cookie missing/expired, attempt server-side refresh using sb-refresh-token

@@ -175,6 +175,14 @@ export default function NotificationsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Link
+              href="/admin/settings/notifications"
+              className="min-h-[36px] px-3 py-1.5 bg-[#161616] hover:bg-[#222] text-[#AAA] hover:text-white border border-[#333] hover:border-[#D4AF37] flex items-center gap-1.5 font-bold uppercase cursor-pointer"
+            >
+              <Bell className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Push Settings</span>
+            </Link>
+
             <button
               onClick={handleMarkAllRead}
               disabled={unreadCount === 0 || loading}

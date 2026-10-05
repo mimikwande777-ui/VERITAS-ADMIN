@@ -251,3 +251,84 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+// ==============================================================================
+// 5. WEB PUSH NOTIFICATIONS & CLICK HANDLER
+// ==============================================================================
+
+self.addEventListener('push', (event) => {
+  let payload = {
+    title: 'VERITAS Admin',
+    body: 'New operational alert',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-192x192.png',
+    data: { url: '/admin/notifications' },
+    tag: `veritas-${Date.now()}`,
+  };
+
+  if (event.data) {
+    try {
+      const data = event.data.json();
+      payload = {
+        title: data.title || 'VERITAS Admin',
+        body: data.body || 'New operational alert',
+        icon: data.icon || '/icons/icon-192x192.png',
+        badge: data.badge || '/icons/icon-192x192.png',
+        tag: data.tag || `veritas-${data.type || 'alert'}-${Date.now()}`,
+        data: {
+          url: data.url || '/admin/notifications',
+          type: data.type,
+          notificationId: data.notificationId,
+        },
+      };
+    } catch {
+      payload.body = event.data.text() || 'New operational alert';
+    }
+  }
+
+  const options = {
+    body: payload.body,
+    icon: payload.icon,
+    badge: payload.badge,
+    tag: payload.tag,
+    data: payload.data,
+    vibrate: [100, 50, 100],
+    requireInteraction: payload.data?.type === 'paid_order' || payload.data?.type === 'payment_attention',
+    actions: [
+      { action: 'open', title: 'View Details' },
+      { action: 'dismiss', title: 'Dismiss' }
+    ]
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, options)
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  if (event.action === 'dismiss') {
+    return;
+  }
+
+  const targetUrl = event.notification.data?.url || '/admin/notifications';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If an existing Admin window is already open, focus it and navigate
+      for (const client of clientList) {
+        if (client.url.includes('/admin') && 'focus' in client) {
+          if ('navigate' in client && targetUrl) {
+            return client.navigate(targetUrl).then((focusedClient) => focusedClient.focus());
+          }
+          return client.focus();
+        }
+      }
+      // Otherwise open a new window
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

@@ -21,7 +21,8 @@ import {
   Lock, 
   Unlock,
   TrendingUp,
-  Bell
+  Bell,
+  Fingerprint
 } from 'lucide-react';
 import { useAdminAuth } from '@/lib/auth-context';
 import { PWAInstallButton } from '@/components/pwa-install-button';
@@ -33,6 +34,7 @@ interface NavItemConfig {
   icon: React.ComponentType<{ className?: string }>;
   requiredPermission?: PermissionString;
   superAdminOnly?: boolean;
+  subItems?: { name: string; href: string }[];
 }
 
 const ALL_NAVIGATION_ITEMS: NavItemConfig[] = [
@@ -50,7 +52,18 @@ const ALL_NAVIGATION_ITEMS: NavItemConfig[] = [
   { name: 'Media Library', href: '/admin/media', icon: ImageIcon, requiredPermission: 'canViewMedia' },
   { name: 'Admin Users', href: '/admin/users', icon: UserCheck, requiredPermission: 'canManageUsers', superAdminOnly: true },
   { name: 'Activity Log', href: '/admin/activity', icon: Activity, requiredPermission: 'canViewActivityLog' },
-  { name: 'Settings', href: '/admin/settings', icon: Settings, requiredPermission: 'canManageSettings', superAdminOnly: true },
+  { 
+    name: 'Settings', 
+    href: '/admin/settings', 
+    icon: Settings, 
+    requiredPermission: 'canManageSettings', 
+    superAdminOnly: true,
+    subItems: [
+      { name: 'General', href: '/admin/settings' },
+      { name: 'Notifications', href: '/admin/settings/notifications' },
+      { name: 'Security', href: '/admin/settings/security' },
+    ]
+  },
 ];
 
 export function AdminSidebar({ currentPath, onNavigate }: { currentPath: string; onNavigate?: () => void }) {
@@ -135,28 +148,55 @@ export function AdminSidebar({ currentPath, onNavigate }: { currentPath: string;
         </div>
         <nav className="space-y-0.5">
           {visibleNavItems.map((item) => {
-            const isActive = currentPath === item.href || (item.href !== '/admin/dashboard' && currentPath.startsWith(item.href));
+            const isExactActive = currentPath === item.href;
+            const isSectionActive = item.href !== '/admin/dashboard' && currentPath.startsWith(item.href);
+            const isActive = isExactActive || isSectionActive;
+            const showSubItems = item.subItems && (isSectionActive || isExactActive);
+
             return (
-              <Link
-                key={item.name}
-                href={item.href}
-                onClick={onNavigate}
-                className={`flex items-center justify-between px-6 py-3 min-h-[44px] text-xs font-semibold uppercase tracking-wider transition-colors group ${
-                  isActive 
-                    ? 'bg-[#1A1A1A] text-[#D4AF37] border-l-3 border-[#D4AF37]' 
-                    : 'text-[#888] hover:text-white border-l-3 border-transparent hover:bg-[#141414]'
-                }`}
-              >
-                <div className="flex items-center">
-                  <item.icon className={`mr-3 h-4 w-4 shrink-0 ${isActive ? 'text-[#D4AF37]' : 'text-[#666] group-hover:text-white'}`} />
-                  <span>{item.name}</span>
-                </div>
-                {item.superAdminOnly && (
-                  <span className="text-[9px] font-mono text-[#777] bg-[#161616] px-1 py-0.5 rounded border border-[#262626]">
-                    SA
-                  </span>
+              <div key={item.name} className="space-y-0.5">
+                <Link
+                  href={item.href}
+                  onClick={onNavigate}
+                  className={`flex items-center justify-between px-6 py-3 min-h-[44px] text-xs font-semibold uppercase tracking-wider transition-colors group ${
+                    isActive 
+                      ? 'bg-[#1A1A1A] text-[#D4AF37] border-l-3 border-[#D4AF37]' 
+                      : 'text-[#888] hover:text-white border-l-3 border-transparent hover:bg-[#141414]'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <item.icon className={`mr-3 h-4 w-4 shrink-0 ${isActive ? 'text-[#D4AF37]' : 'text-[#666] group-hover:text-white'}`} />
+                    <span>{item.name}</span>
+                  </div>
+                  {item.superAdminOnly && (
+                    <span className="text-[9px] font-mono text-[#777] bg-[#161616] px-1 py-0.5 rounded border border-[#262626]">
+                      SA
+                    </span>
+                  )}
+                </Link>
+
+                {/* NESTED SETTINGS SUB-NAVIGATION */}
+                {item.subItems && (
+                  <div className={`pl-13 pr-6 py-1 space-y-1 bg-[#121212]/60 border-l border-[#222] ml-6 my-0.5 ${showSubItems ? 'block' : 'hidden'}`}>
+                    {item.subItems.map((sub) => {
+                      const isSubActive = currentPath === sub.href;
+                      return (
+                        <Link
+                          key={sub.href}
+                          href={sub.href}
+                          onClick={onNavigate}
+                          className={`flex items-center gap-2 py-1.5 text-[11px] font-mono uppercase tracking-wider transition-colors ${
+                            isSubActive ? 'text-[#D4AF37] font-bold' : 'text-[#777] hover:text-[#CCC]'
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${isSubActive ? 'bg-[#D4AF37]' : 'bg-[#444]'}`} />
+                          <span>{sub.name}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
                 )}
-              </Link>
+              </div>
             );
           })}
         </nav>

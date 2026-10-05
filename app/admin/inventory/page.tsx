@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { 
   Package, 
@@ -67,7 +67,7 @@ export default function InventoryPage() {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const loadData = async (showSpinner = true) => {
+  const loadData = useCallback(async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
     setError(null);
     try {
@@ -100,7 +100,7 @@ export default function InventoryPage() {
     } finally {
       if (showSpinner) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -129,7 +129,7 @@ export default function InventoryPage() {
       window.removeEventListener('veritas_products_updated', handleUpdate);
       window.removeEventListener('veritas_admin_auth_changed', handleAuthChange);
     };
-  }, []);
+  }, [loadData]);
 
   // Update quantity and recalculate status automatically in local UI state
   const handleQuantityChange = (id: string, newQuantity: number) => {

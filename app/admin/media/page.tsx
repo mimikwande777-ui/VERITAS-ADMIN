@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Image as ImageIcon, 
   Upload, 
@@ -55,7 +55,7 @@ export default function MediaLibraryPage() {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setErrorMsg(null);
     try {
@@ -76,7 +76,7 @@ export default function MediaLibraryPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedProductId]);
 
   useEffect(() => {
     let mounted = true;
@@ -88,7 +88,7 @@ export default function MediaLibraryPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [loadData]);
 
   const selectedProduct = products.find(p => p.id === selectedProductId);
 

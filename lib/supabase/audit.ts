@@ -13,6 +13,9 @@ export type AuditActionType =
   | 'media.delete'
   | 'auth.login'
   | 'auth.logout'
+  | 'auth.passkey_register'
+  | 'auth.passkey_login'
+  | 'auth.passkey_revoke'
   | 'settings.update';
 
 export interface AuditLogEntry {

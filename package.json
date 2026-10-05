@@ -12,6 +12,8 @@
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@hookform/resolvers": "^5.2.1",
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.0.3",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.112.4",
     "autoprefixer": "^10.4.21",
@@ -26,7 +28,8 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "recharts": "^3.10.1",
-    "tailwind-merge": "^3.3.1"
+    "tailwind-merge": "^3.3.1",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.11",
@@ -34,6 +37,7 @@
     "@types/node": "20.17.6",
     "@types/react": "19.2.18",
     "@types/react-dom": "^19",
+    "@types/web-push": "^3.6.4",
     "eslint": "9.39.1",
     "eslint-config-next": "16.0.8",
     "tailwindcss": "4.1.11",

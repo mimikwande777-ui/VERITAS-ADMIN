@@ -2,13 +2,15 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAdminAuth } from '@/lib/auth-context';
-import { ShieldCheck, Lock, Mail, KeyRound, X, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, KeyRound, X, Loader2, AlertCircle, ArrowLeft, Fingerprint, Sparkles } from 'lucide-react';
+import { authenticatePasskey } from '@/lib/passkey/client-passkey';
 
 export function AdminUnlockModal() {
   const { isUnlockModalOpen, closeUnlockModal, signIn, isAuthenticated } = useAdminAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   // Forgot Password state
@@ -69,6 +71,24 @@ export function AdminUnlockModal() {
       setErrorMessage(err?.message || 'Authentication failed. Please check network connection.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePasskeySignIn = async () => {
+    setPasskeyLoading(true);
+    setErrorMessage(null);
+    try {
+      const result = await authenticatePasskey();
+      if (!result.success) {
+        setErrorMessage(result.error || 'Passkey verification failed.');
+      } else {
+        // Success - reload page or refresh session so auth context updates
+        window.location.reload();
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Passkey authentication failed.');
+    } finally {
+      setPasskeyLoading(false);
     }
   };
 
@@ -224,10 +244,10 @@ export function AdminUnlockModal() {
               </div>
 
               {/* Submit Button */}
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || passkeyLoading}
                   className="w-full min-h-[44px] bg-[#D4AF37] hover:bg-[#B3932F] active:scale-[0.99] text-black font-bold uppercase text-xs tracking-wider rounded-xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                 >
                   {loading ? (
@@ -238,10 +258,39 @@ export function AdminUnlockModal() {
                   ) : (
                     <>
                       <Lock className="w-4 h-4 text-black" />
-                      <span>Unlock Admin</span>
+                      <span>Sign In with Password</span>
                     </>
                   )}
                 </button>
+
+                {/* PASSKEY / BIOMETRIC 1-TAP LOGIN */}
+                <div className="relative flex py-1 items-center">
+                  <div className="flex-grow border-t border-[#222]"></div>
+                  <span className="flex-shrink mx-2 text-[10px] text-[#666] uppercase tracking-wider font-mono">OR</span>
+                  <div className="flex-grow border-t border-[#222]"></div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handlePasskeySignIn}
+                  disabled={loading || passkeyLoading}
+                  className="w-full min-h-[44px] bg-[#161616] hover:bg-[#202020] active:scale-[0.99] text-white border border-[#333] hover:border-[#D4AF37] font-bold uppercase text-xs tracking-wider rounded-xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                >
+                  {passkeyLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-[#D4AF37]" />
+                      <span>Verifying Device Biometrics...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Fingerprint className="w-4 h-4 text-[#D4AF37]" />
+                      <span>Sign in with Passkey</span>
+                    </>
+                  )}
+                </button>
+                <p className="text-[10px] text-center text-[#666] font-mono">
+                  Use Face ID, Touch ID, Windows Hello or device security
+                </p>
               </div>
             </form>
           </>
