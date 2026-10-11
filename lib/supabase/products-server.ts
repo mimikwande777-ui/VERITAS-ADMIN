@@ -369,9 +369,6 @@ export async function serverUpdateSupabaseProduct(
       return { product: null, error: parseSupabaseError(prodError) };
     }
 
-    if (updates.variants !== undefined) {
-      await client.from('product_variants').delete().eq('product_id', id);
-    }
     if (updates.images !== undefined) {
       await client.from('product_media').delete().eq('product_id', id);
     }
@@ -418,36 +415,85 @@ export async function serverUpdateSupabaseProduct(
       }
     }
 
-    if (updates.variants && updates.variants.length > 0) {
+    if (updates.variants !== undefined && updates.variants.length > 0) {
+      const { data: existingVariants } = await client
+        .from('product_variants')
+        .select('*')
+        .eq('product_id', id);
+
       const categoryForSku = updates.category || patch.product_type || 'T-Shirts';
+      const retainedExistingIds = new Set<string>();
       const seenSkus = new Set<string>();
 
-      const variantPayload = updates.variants.map((v, idx) => {
-        const currentSku = v.sku?.trim();
-        const isValidSku = currentSku && 
-          !currentSku.includes('-CPY') && 
-          !currentSku.startsWith('VRT-') && 
-          currentSku.startsWith('VER-');
-
-        let assignedSku = isValidSku ? currentSku : formatVariantSku(id, categoryForSku, idx);
-        if (seenSkus.has(assignedSku)) {
-          assignedSku = formatVariantSku(id, categoryForSku, idx);
-        }
-        seenSkus.add(assignedSku);
-
-        return {
-          product_id: id,
-          colour_id: (v as any).colour_id || (v as any).colourId || (v.colour ? colourMap[v.colour] : undefined),
-          sku: assignedSku,
-          colour: v.colour,
-          size: v.size,
-          stock_quantity: Number(v.stockQuantity !== undefined ? v.stockQuantity : (v as any).stock_quantity) || 0,
-          low_stock_threshold: Number(v.lowStockThreshold !== undefined ? v.lowStockThreshold : (v as any).low_stock_threshold) || 5,
-        };
+      (existingVariants || []).forEach(ev => {
+        if (ev.sku) seenSkus.add(ev.sku);
       });
-      const { error: varError } = await client.from('product_variants').insert(variantPayload);
-      if (varError) {
-        return { product: null, error: `Failed to update variants: ${parseSupabaseError(varError)}` };
+
+      for (let idx = 0; idx < updates.variants.length; idx++) {
+        const v = updates.variants[idx];
+        const vId = (v as any).id;
+        const match = (existingVariants || []).find(ev => 
+          (vId && ev.id === vId) || 
+          (ev.colour?.toLowerCase() === v.colour?.toLowerCase() && ev.size?.toUpperCase() === v.size?.toUpperCase())
+        );
+
+        const colourId = (v as any).colour_id || (v as any).colourId || (v.colour ? colourMap[v.colour] : undefined);
+        const stockQty = Number(v.stockQuantity !== undefined ? v.stockQuantity : (v as any).stock_quantity) || 0;
+        const lowStock = Number(v.lowStockThreshold !== undefined ? v.lowStockThreshold : (v as any).low_stock_threshold) || 5;
+
+        if (match) {
+          retainedExistingIds.add(match.id);
+          // Preserve existing variant ID and existing SKU
+          const { error: updErr } = await client
+            .from('product_variants')
+            .update({
+              colour_id: colourId || match.colour_id,
+              colour: v.colour,
+              size: v.size,
+              stock_quantity: stockQty,
+              low_stock_threshold: lowStock,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', match.id);
+
+          if (updErr) {
+            return { product: null, error: `Failed to update variant: ${parseSupabaseError(updErr)}` };
+          }
+        } else {
+          // New variant: generate unique SKU
+          let newSku = formatVariantSku(id, categoryForSku, idx);
+          let offset = 0;
+          while (seenSkus.has(newSku)) {
+            offset++;
+            newSku = formatVariantSku(id, categoryForSku, (existingVariants?.length || 0) + idx + offset);
+          }
+          seenSkus.add(newSku);
+
+          const { error: insErr } = await client
+            .from('product_variants')
+            .insert({
+              product_id: id,
+              colour_id: colourId,
+              sku: newSku,
+              colour: v.colour,
+              size: v.size,
+              stock_quantity: stockQty,
+              low_stock_threshold: lowStock,
+            });
+
+          if (insErr) {
+            return { product: null, error: `Failed to insert variant: ${parseSupabaseError(insErr)}` };
+          }
+        }
+      }
+
+      // Delete only variants that were removed
+      const toDeleteIds = (existingVariants || [])
+        .filter(ev => !retainedExistingIds.has(ev.id))
+        .map(ev => ev.id);
+
+      if (toDeleteIds.length > 0) {
+        await client.from('product_variants').delete().in('id', toDeleteIds);
       }
     }
 

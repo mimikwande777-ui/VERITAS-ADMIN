@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS public.product_colours (
 CREATE TABLE IF NOT EXISTS public.product_variants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-    sku TEXT NOT NULL,
+    sku TEXT NOT NULL UNIQUE,
     colour TEXT NOT NULL,
     size TEXT NOT NULL,
     stock_quantity INT NOT NULL DEFAULT 0,
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS public.order_addresses (
 CREATE INDEX IF NOT EXISTS idx_products_slug ON public.products(slug);
 CREATE INDEX IF NOT EXISTS idx_products_status_published ON public.products(status, published);
 CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON public.product_variants(product_id);
-CREATE INDEX IF NOT EXISTS idx_product_variants_sku ON public.product_variants(sku);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_product_variants_sku ON public.product_variants(sku);
 CREATE INDEX IF NOT EXISTS idx_product_media_product_id ON public.product_media(product_id);
 CREATE INDEX IF NOT EXISTS idx_product_colours_product_id ON public.product_colours(product_id);
 CREATE INDEX IF NOT EXISTS idx_orders_order_number ON public.orders(order_number);

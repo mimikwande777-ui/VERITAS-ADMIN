@@ -277,10 +277,33 @@ export function updateProduct(id: string, data: Partial<ProductItem>): ProductIt
   }
 
   const current = products[index];
+  let preservedVariants = current.variants;
+  if (data.variants && data.variants.length > 0) {
+    const categoryForSku = data.category || current.category || 'T-Shirts';
+    preservedVariants = data.variants.map((v, idx) => {
+      const match = (current.variants || []).find(ev => 
+        ev.id === v.id || 
+        (ev.colour?.toLowerCase() === v.colour?.toLowerCase() && ev.size?.toUpperCase() === v.size?.toUpperCase())
+      );
+      if (match) {
+        return {
+          ...v,
+          id: match.id,
+          sku: match.sku,
+        };
+      }
+      return {
+        ...v,
+        sku: v.sku || formatVariantSku(current.id, categoryForSku, idx),
+      };
+    });
+  }
+
   const updatedProduct: ProductItem = {
     ...current,
     ...data,
     id: current.id,
+    variants: preservedVariants,
     active: (data.status ? data.status === 'ACTIVE' : current.status === 'ACTIVE') && (data.published !== undefined ? data.published : current.published),
     updatedAt: new Date().toISOString().split('T')[0],
   };
