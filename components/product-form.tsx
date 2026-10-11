@@ -439,6 +439,9 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
               window.history.replaceState({}, '', `/admin/products/${saved.id}/edit`);
             }
           }
+          if (saved.images && saved.images.length > 0) {
+            setImages(saved.images);
+          }
           setSaveStatus('saved');
           setLastSavedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
           localStorage.setItem(`veritas_product_draft_${saved.id}`, JSON.stringify(payload));
@@ -1168,6 +1171,9 @@ export default function ProductForm({ initialProduct, mode = 'create' }: Product
 
     const createdId = savedProduct.id;
     const productName = savedProduct.name;
+    if (savedProduct.images && savedProduct.images.length > 0) {
+      setImages(savedProduct.images);
+    }
 
     // Discard any draft revision upon successful publish/save
     if (createdId) {

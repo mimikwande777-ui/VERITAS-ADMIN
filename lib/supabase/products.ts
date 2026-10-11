@@ -543,6 +543,8 @@ export async function createSupabaseProduct(data: Partial<ProductItem>): Promise
 
     // 3. Upload product images to Storage bucket `product-media` & insert metadata into `product_media`
     if (data.images && data.images.length > 0) {
+      const primaryIdx = data.images.findIndex((img: any) => img.isPrimary === true);
+      const effectivePrimaryIdx = primaryIdx >= 0 ? primaryIdx : 0;
       const mediaRecords = [];
 
       for (let idx = 0; idx < data.images.length; idx++) {
@@ -586,7 +588,7 @@ export async function createSupabaseProduct(data: Partial<ProductItem>): Promise
           alt_text: m.alt || inserted.name,
           media_type: mediaType,
           sort_order: idx,
-          is_primary: m.isPrimary || idx === 0,
+          is_primary: idx === effectivePrimaryIdx,
         });
       }
 
@@ -726,12 +728,9 @@ export async function updateSupabaseProduct(id: string, updates: Partial<Product
       return { product: null, error: parseSupabaseError(prodError) };
     }
 
-    // 1. Delete existing variants & media first to prevent any foreign key conflict if colours are removed
+    // 1. Delete existing variants if variants payload provided
     if (updates.variants !== undefined) {
       await client.from('product_variants').delete().eq('product_id', id);
-    }
-    if (updates.images !== undefined) {
-      await client.from('product_media').delete().eq('product_id', id);
     }
 
     const colourMap: Record<string, string> = {};
@@ -795,52 +794,118 @@ export async function updateSupabaseProduct(id: string, updates: Partial<Product
     }
 
     // 3. Insert new product media
-    if (updates.images && updates.images.length > 0) {
-      const mediaRecords = [];
+    if (updates.images !== undefined) {
+      const { data: existingMediaList } = await client
+        .from('product_media')
+        .select('*')
+        .eq('product_id', id);
 
-      for (let idx = 0; idx < updates.images.length; idx++) {
-        const m = updates.images[idx];
-        let storagePath = m.url;
-        let mediaType = m.role || 'front';
-        if (mediaType === 'main') mediaType = 'front';
-        if (mediaType === 'gallery') mediaType = 'detail';
+      const existingMedia = existingMediaList || [];
 
-        if ((m as any).file instanceof File) {
-          const file = (m as any).file as File;
-          const safeFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-          const uploadPath = `products/${id}/${mediaType}/${safeFileName}`;
+      if (updates.images.length === 0) {
+        if (existingMedia.length > 0) {
+          await client.from('product_media').delete().eq('product_id', id);
+        }
+      } else {
+        const primaryIdx = updates.images.findIndex((img: any) => img.isPrimary === true);
+        const effectivePrimaryIdx = primaryIdx >= 0 ? primaryIdx : 0;
 
-          const uploadRes = await uploadMediaToSupabaseBucket(file, uploadPath);
-          if (uploadRes.success && uploadRes.storagePath) {
-            storagePath = uploadRes.storagePath;
+        // Reset is_primary to false on all existing media for this product
+        if (existingMedia.length > 0) {
+          await client.from('product_media').update({ is_primary: false }).eq('product_id', id);
+        }
+
+        const matchedMediaIds = new Set<string>();
+
+        // Pass 1: Match by ID
+        const matches: Array<any | null> = updates.images.map((img: any) => {
+          if (img.id) {
+            const found = existingMedia.find(em => em.id === img.id && !matchedMediaIds.has(em.id));
+            if (found) {
+              matchedMediaIds.add(found.id);
+              return found;
+            }
           }
-        } else if (m.url && m.url.startsWith('data:')) {
-          const blob = dataUrlToBlob(m.url);
-          if (blob) {
-            const safeFileName = `${Date.now()}_img_${idx}.png`;
+          return null;
+        });
+
+        // Pass 2: Match by storage path
+        updates.images.forEach((img: any, idx: number) => {
+          if (!matches[idx] && img.url) {
+            const incomingUrl = String(img.url).trim();
+            const found = existingMedia.find(em => {
+              if (matchedMediaIds.has(em.id)) return false;
+              const emPath = String(em.storage_path).trim();
+              return emPath === incomingUrl || incomingUrl.endsWith(emPath) || emPath.endsWith(incomingUrl);
+            });
+            if (found) {
+              matchedMediaIds.add(found.id);
+              matches[idx] = found;
+            }
+          }
+        });
+
+        for (let idx = 0; idx < updates.images.length; idx++) {
+          const m = updates.images[idx];
+          const matched = matches[idx];
+          let storagePath = m.url;
+          let mediaType = m.role || 'front';
+          if (mediaType === 'main') mediaType = 'front';
+          if (mediaType === 'gallery') mediaType = 'detail';
+
+          if ((m as any).file instanceof File) {
+            const file = (m as any).file as File;
+            const safeFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
             const uploadPath = `products/${id}/${mediaType}/${safeFileName}`;
-            const file = new File([blob], safeFileName, { type: 'image/png' });
+
             const uploadRes = await uploadMediaToSupabaseBucket(file, uploadPath);
             if (uploadRes.success && uploadRes.storagePath) {
               storagePath = uploadRes.storagePath;
             }
+          } else if (m.url && m.url.startsWith('data:')) {
+            const blob = dataUrlToBlob(m.url);
+            if (blob) {
+              const safeFileName = `${Date.now()}_img_${idx}.png`;
+              const uploadPath = `products/${id}/${mediaType}/${safeFileName}`;
+              const file = new File([blob], safeFileName, { type: 'image/png' });
+              const uploadRes = await uploadMediaToSupabaseBucket(file, uploadPath);
+              if (uploadRes.success && uploadRes.storagePath) {
+                storagePath = uploadRes.storagePath;
+              }
+            }
+          }
+
+          const mColourId = m.colourId || (m.colourName ? colourMap[m.colourName] : undefined);
+          const isPrimary = (idx === effectivePrimaryIdx);
+
+          if (matched) {
+            await client.from('product_media').update({
+              storage_path: storagePath,
+              alt_text: m.alt || updates.name || 'Product Media',
+              media_type: mediaType,
+              sort_order: idx,
+              is_primary: isPrimary,
+              colour_id: mColourId,
+              updated_at: new Date().toISOString(),
+            }).eq('id', matched.id);
+          } else {
+            await client.from('product_media').insert({
+              product_id: id,
+              colour_id: mColourId,
+              storage_path: storagePath,
+              alt_text: m.alt || updates.name || 'Product Media',
+              media_type: mediaType,
+              sort_order: idx,
+              is_primary: isPrimary,
+            });
           }
         }
 
-        let mColourId = m.colourId || (m.colourName ? colourMap[m.colourName] : undefined);
-        
-        mediaRecords.push({
-          product_id: id,
-          colour_id: mColourId,
-          storage_path: storagePath,
-          alt_text: m.alt || updates.name || 'Product Media',
-          media_type: mediaType,
-          sort_order: idx,
-          is_primary: m.isPrimary || idx === 0,
-        });
+        const removedMediaIds = existingMedia.filter(em => !matchedMediaIds.has(em.id)).map(em => em.id);
+        if (removedMediaIds.length > 0) {
+          await client.from('product_media').delete().in('id', removedMediaIds);
+        }
       }
-
-      await client.from('product_media').insert(mediaRecords);
     }
 
     // Re-fetch updated product from Supabase

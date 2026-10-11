@@ -300,6 +300,9 @@ export async function serverCreateSupabaseProduct(data: Partial<ProductItem>, cl
     }
 
     if (data.images && data.images.length > 0) {
+      const primaryIdx = data.images.findIndex((img: any) => img.isPrimary === true);
+      const effectivePrimaryIdx = primaryIdx >= 0 ? primaryIdx : 0;
+
       const mediaRecords = data.images.map((m, idx) => {
         let mediaType = m.role || 'front';
         if (mediaType === 'main') mediaType = 'front';
@@ -312,11 +315,15 @@ export async function serverCreateSupabaseProduct(data: Partial<ProductItem>, cl
           alt_text: m.alt || inserted.name,
           media_type: mediaType,
           sort_order: idx,
-          is_primary: m.isPrimary || idx === 0,
+          is_primary: idx === effectivePrimaryIdx,
         };
       });
 
-      await client.from('product_media').insert(mediaRecords);
+      const { error: mediaErr } = await client.from('product_media').insert(mediaRecords);
+      if (mediaErr) {
+        await client.from('products').delete().eq('id', inserted.id);
+        return { product: null, error: `Failed to save product media: ${parseSupabaseError(mediaErr)}` };
+      }
     }
 
     const created = await serverFetchSupabaseProductById(inserted.id, client);
@@ -388,13 +395,6 @@ export async function serverUpdateSupabaseProduct(
 
     if (prodError) {
       return { product: null, error: parseSupabaseError(prodError) };
-    }
-
-    if (updates.images !== undefined) {
-      const { error: mediaDelErr } = await client.from('product_media').delete().eq('product_id', id);
-      if (mediaDelErr) {
-        return { product: null, error: `Failed to clear old media: ${parseSupabaseError(mediaDelErr)}` };
-      }
     }
 
     const colourMap: Record<string, string> = {};
@@ -600,26 +600,140 @@ export async function serverUpdateSupabaseProduct(
       }
     }
 
-    if (updates.images && updates.images.length > 0) {
-      const mediaRecords = updates.images.map((m, idx) => {
-        let mediaType = m.role || 'front';
-        if (mediaType === 'main') mediaType = 'front';
-        if (mediaType === 'gallery') mediaType = 'detail';
+    if (updates.images !== undefined) {
+      const { data: existingMediaList, error: fetchMediaErr } = await client
+        .from('product_media')
+        .select('*')
+        .eq('product_id', id);
 
-        return {
-          product_id: id,
-          colour_id: m.colourId || (m.colourName ? colourMap[m.colourName] : undefined),
-          storage_path: m.url,
-          alt_text: m.alt || updates.name || 'Product Media',
-          media_type: mediaType,
-          sort_order: idx,
-          is_primary: m.isPrimary || idx === 0,
-        };
-      });
+      if (fetchMediaErr) {
+        return { product: null, error: `Failed to fetch existing media: ${parseSupabaseError(fetchMediaErr)}` };
+      }
 
-      const { error: mediaInsErr } = await client.from('product_media').insert(mediaRecords);
-      if (mediaInsErr) {
-        return { product: null, error: `Failed to save product media: ${parseSupabaseError(mediaInsErr)}` };
+      const existingMedia = existingMediaList || [];
+
+      if (updates.images.length === 0) {
+        // User explicitly removed all images
+        if (existingMedia.length > 0) {
+          const { error: delAllErr } = await client
+            .from('product_media')
+            .delete()
+            .eq('product_id', id);
+          if (delAllErr) {
+            return { product: null, error: `Failed to remove product media: ${parseSupabaseError(delAllErr)}` };
+          }
+        }
+      } else {
+        // Enforce exactly one primary media across the product to satisfy product_media_one_primary_per_product
+        const primaryIdx = updates.images.findIndex((img: any) => img.isPrimary === true);
+        const effectivePrimaryIdx = primaryIdx >= 0 ? primaryIdx : 0;
+
+        // Reset is_primary to false on all existing media for this product to prevent transient unique collisions
+        if (existingMedia.length > 0) {
+          const { error: resetErr } = await client
+            .from('product_media')
+            .update({ is_primary: false })
+            .eq('product_id', id);
+          if (resetErr) {
+            return { product: null, error: `Failed to reset primary media: ${parseSupabaseError(resetErr)}` };
+          }
+        }
+
+        const matchedMediaIds = new Set<string>();
+
+        // Match pass 1: Match incoming images by exact existing media ID (UUID primary key)
+        const matches: Array<any | null> = updates.images.map((img: any) => {
+          if (img.id) {
+            const found = existingMedia.find(em => em.id === img.id && !matchedMediaIds.has(em.id));
+            if (found) {
+              matchedMediaIds.add(found.id);
+              return found;
+            }
+          }
+          return null;
+        });
+
+        // Match pass 2: For unmatched incoming images, match by storage_path / URL
+        updates.images.forEach((img: any, idx: number) => {
+          if (!matches[idx] && img.url) {
+            const incomingUrl = String(img.url).trim();
+            const found = existingMedia.find(em => {
+              if (matchedMediaIds.has(em.id)) return false;
+              const emPath = String(em.storage_path).trim();
+              return emPath === incomingUrl ||
+                     incomingUrl.endsWith(emPath) ||
+                     emPath.endsWith(incomingUrl);
+            });
+            if (found) {
+              matchedMediaIds.add(found.id);
+              matches[idx] = found;
+            }
+          }
+        });
+
+        // Update matched existing media in place or insert new media
+        for (let idx = 0; idx < updates.images.length; idx++) {
+          const m = updates.images[idx];
+          const matched = matches[idx];
+          let mediaType = m.role || 'front';
+          if (mediaType === 'main') mediaType = 'front';
+          if (mediaType === 'gallery') mediaType = 'detail';
+          const isPrimary = (idx === effectivePrimaryIdx);
+          const colourId = m.colourId || (m.colourName ? colourMap[m.colourName] : undefined);
+          const storagePath = m.url || '';
+          const altText = m.alt || updates.name || 'Product Media';
+
+          if (matched) {
+            const { error: updMediaErr } = await client
+              .from('product_media')
+              .update({
+                storage_path: storagePath,
+                alt_text: altText,
+                media_type: mediaType,
+                sort_order: idx,
+                is_primary: isPrimary,
+                colour_id: colourId,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', matched.id);
+
+            if (updMediaErr) {
+              return { product: null, error: `Failed to save product media: ${parseSupabaseError(updMediaErr)}` };
+            }
+          } else {
+            const { error: insMediaErr } = await client
+              .from('product_media')
+              .insert({
+                product_id: id,
+                storage_path: storagePath,
+                alt_text: altText,
+                media_type: mediaType,
+                sort_order: idx,
+                is_primary: isPrimary,
+                colour_id: colourId,
+              });
+
+            if (insMediaErr) {
+              return { product: null, error: `Failed to save product media: ${parseSupabaseError(insMediaErr)}` };
+            }
+          }
+        }
+
+        // Delete only existing media records that were removed by the user
+        const removedMediaIds = existingMedia
+          .filter(em => !matchedMediaIds.has(em.id))
+          .map(em => em.id);
+
+        if (removedMediaIds.length > 0) {
+          const { error: delMediaErr } = await client
+            .from('product_media')
+            .delete()
+            .in('id', removedMediaIds);
+
+          if (delMediaErr) {
+            return { product: null, error: `Failed to delete removed media: ${parseSupabaseError(delMediaErr)}` };
+          }
+        }
       }
     }
 
