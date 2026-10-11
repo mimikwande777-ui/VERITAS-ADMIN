@@ -190,8 +190,8 @@ export async function serverFetchSupabaseProductById(id: string, client: Supabas
 
 export async function serverCreateSupabaseProduct(data: Partial<ProductItem>, client: SupabaseClient): Promise<{ product: ProductItem | null; error: string | null }> {
   try {
-    const sellingPrice = Number(data.price) || 0;
-    const costPrice = Number(data.costPrice) || 0;
+    const sellingPrice = Number(data.price !== undefined ? data.price : (data as any).sellingPrice) || 0;
+    const costPrice = Number(data.costPrice !== undefined ? data.costPrice : (data as any).cost_price) || 0;
     const statusLower = (data.status?.toLowerCase() as any) || 'draft';
 
     const categoryTarget = (data as any).categoryId || (data as any).category_id || data.category;
@@ -247,6 +247,25 @@ export async function serverCreateSupabaseProduct(data: Partial<ProductItem>, cl
     }
 
     const colourMap: Record<string, string> = {};
+
+    if (data.variants && data.variants.length > 0) {
+      const incomingCombos = new Set<string>();
+      for (const v of data.variants) {
+        const colKey = (v.colour || '').trim().toLowerCase();
+        const sizeKey = (v.size || '').trim().toUpperCase();
+        const comboKey = `${colKey}__${sizeKey}`;
+        if (incomingCombos.has(comboKey)) {
+          if (inserted) {
+            await client.from('products').delete().eq('id', inserted.id);
+          }
+          return {
+            product: null,
+            error: `Duplicate variant combination detected: colour "${v.colour}" and size "${v.size}" cannot be defined multiple times.`
+          };
+        }
+        incomingCombos.add(comboKey);
+      }
+    }
 
     if (data.colours && data.colours.length > 0) {
       for (const [index, col] of data.colours.entries()) {
@@ -321,7 +340,9 @@ export async function serverUpdateSupabaseProduct(
     if (updates.slug !== undefined) patch.slug = updates.slug;
     if (updates.description !== undefined) patch.description = updates.description;
     if (updates.price !== undefined) patch.selling_price = Number(updates.price);
+    else if ((updates as any).sellingPrice !== undefined) patch.selling_price = Number((updates as any).sellingPrice);
     if (updates.costPrice !== undefined) patch.cost_price = Number(updates.costPrice);
+    else if ((updates as any).cost_price !== undefined) patch.cost_price = Number((updates as any).cost_price);
     if (updates.status !== undefined) patch.status = updates.status.toLowerCase();
     if (updates.published !== undefined) patch.published = updates.published;
     if (updates.featured !== undefined) patch.featured = updates.featured;
@@ -370,7 +391,10 @@ export async function serverUpdateSupabaseProduct(
     }
 
     if (updates.images !== undefined) {
-      await client.from('product_media').delete().eq('product_id', id);
+      const { error: mediaDelErr } = await client.from('product_media').delete().eq('product_id', id);
+      if (mediaDelErr) {
+        return { product: null, error: `Failed to clear old media: ${parseSupabaseError(mediaDelErr)}` };
+      }
     }
 
     const colourMap: Record<string, string> = {};
@@ -382,27 +406,36 @@ export async function serverUpdateSupabaseProduct(
       for (const [index, col] of updates.colours.entries()) {
         const existing = (existingColours || []).find(c => c.name === col.name);
         if (existing) {
-          await client.from('product_colours').update({
+          const { error: colUpdErr } = await client.from('product_colours').update({
             name: col.name,
             slug: col.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
             hex_code: col.code,
             sort_order: index
           }).eq('id', existing.id);
+          if (colUpdErr) {
+            return { product: null, error: `Failed to update colour: ${parseSupabaseError(colUpdErr)}` };
+          }
           colourMap[col.name] = existing.id;
         } else {
-          const { data: insertedCol } = await client.from('product_colours').insert({
+          const { data: insertedCol, error: colInsErr } = await client.from('product_colours').insert({
             product_id: id,
             name: col.name,
             slug: col.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
             hex_code: col.code,
             sort_order: index
           }).select('id').single();
+          if (colInsErr) {
+            return { product: null, error: `Failed to insert colour: ${parseSupabaseError(colInsErr)}` };
+          }
           if (insertedCol) colourMap[col.name] = insertedCol.id;
         }
       }
 
       if (toDelete.length > 0) {
-        await client.from('product_colours').delete().in('id', toDelete);
+        const { error: colDelErr } = await client.from('product_colours').delete().in('id', toDelete);
+        if (colDelErr) {
+          return { product: null, error: `Failed to delete removed colours: ${parseSupabaseError(colDelErr)}` };
+        }
       }
     }
 
@@ -416,34 +449,81 @@ export async function serverUpdateSupabaseProduct(
     }
 
     if (updates.variants !== undefined && updates.variants.length > 0) {
-      const { data: existingVariants } = await client
+      // 5. Detect duplicate colour-size combinations in the incoming payload and return a clear validation error
+      const incomingCombos = new Set<string>();
+      for (const v of updates.variants) {
+        const colKey = (v.colour || '').trim().toLowerCase();
+        const sizeKey = (v.size || '').trim().toUpperCase();
+        const comboKey = `${colKey}__${sizeKey}`;
+        if (incomingCombos.has(comboKey)) {
+          return {
+            product: null,
+            error: `Duplicate variant combination detected: colour "${v.colour}" and size "${v.size}" cannot be defined multiple times.`
+          };
+        }
+        incomingCombos.add(comboKey);
+      }
+
+      const { data: existingVariants, error: fetchVarErr } = await client
         .from('product_variants')
         .select('*')
         .eq('product_id', id);
 
+      if (fetchVarErr) {
+        return { product: null, error: `Failed to fetch existing variants: ${parseSupabaseError(fetchVarErr)}` };
+      }
+
+      const existingList: DbProductVariant[] = existingVariants || [];
       const categoryForSku = updates.category || patch.product_type || 'T-Shirts';
-      const retainedExistingIds = new Set<string>();
+      const matchedExistingIds = new Set<string>();
       const seenSkus = new Set<string>();
 
-      (existingVariants || []).forEach(ev => {
+      existingList.forEach(ev => {
         if (ev.sku) seenSkus.add(ev.sku);
       });
 
+      // Track 1-to-1 matching for incoming variants
+      const matches: (DbProductVariant | null)[] = new Array(updates.variants.length).fill(null);
+
+      // 1. Match incoming variants by ID first
+      updates.variants.forEach((v, idx) => {
+        const vId = (v as any).id;
+        if (vId) {
+          const found = existingList.find(ev => ev.id === vId && !matchedExistingIds.has(ev.id));
+          if (found) {
+            matches[idx] = found;
+            matchedExistingIds.add(found.id);
+          }
+        }
+      });
+
+      // 2. If no ID match exists, match by normalized colour and size only against existing variants not already matched
+      updates.variants.forEach((v, idx) => {
+        if (!matches[idx]) {
+          const normCol = (v.colour || '').trim().toLowerCase();
+          const normSize = (v.size || '').trim().toUpperCase();
+          const found = existingList.find(ev =>
+            !matchedExistingIds.has(ev.id) &&
+            (ev.colour || '').trim().toLowerCase() === normCol &&
+            (ev.size || '').trim().toUpperCase() === normSize
+          );
+          if (found) {
+            matches[idx] = found;
+            matchedExistingIds.add(found.id);
+          }
+        }
+      });
+
+      // Process matched and new variants
       for (let idx = 0; idx < updates.variants.length; idx++) {
         const v = updates.variants[idx];
-        const vId = (v as any).id;
-        const match = (existingVariants || []).find(ev => 
-          (vId && ev.id === vId) || 
-          (ev.colour?.toLowerCase() === v.colour?.toLowerCase() && ev.size?.toUpperCase() === v.size?.toUpperCase())
-        );
-
+        const match = matches[idx];
         const colourId = (v as any).colour_id || (v as any).colourId || (v.colour ? colourMap[v.colour] : undefined);
         const stockQty = Number(v.stockQuantity !== undefined ? v.stockQuantity : (v as any).stock_quantity) || 0;
         const lowStock = Number(v.lowStockThreshold !== undefined ? v.lowStockThreshold : (v as any).low_stock_threshold) || 5;
 
         if (match) {
-          retainedExistingIds.add(match.id);
-          // Preserve existing variant ID and existing SKU
+          // 6. Preserve existing variant ID and SKU
           const { error: updErr } = await client
             .from('product_variants')
             .update({
@@ -460,12 +540,12 @@ export async function serverUpdateSupabaseProduct(
             return { product: null, error: `Failed to update variant: ${parseSupabaseError(updErr)}` };
           }
         } else {
-          // New variant: generate unique SKU
+          // 7. Generate a unique server-authoritative SKU for each new variant
           let newSku = formatVariantSku(id, categoryForSku, idx);
           let offset = 0;
           while (seenSkus.has(newSku)) {
             offset++;
-            newSku = formatVariantSku(id, categoryForSku, (existingVariants?.length || 0) + idx + offset);
+            newSku = formatVariantSku(id, categoryForSku, existingList.length + idx + offset);
           }
           seenSkus.add(newSku);
 
@@ -487,13 +567,36 @@ export async function serverUpdateSupabaseProduct(
         }
       }
 
-      // Delete only variants that were removed
-      const toDeleteIds = (existingVariants || [])
-        .filter(ev => !retainedExistingIds.has(ev.id))
+      // 8. Delete only existing variants genuinely removed by the user
+      const removedVariantIds = existingList
+        .filter(ev => !matchedExistingIds.has(ev.id))
         .map(ev => ev.id);
 
-      if (toDeleteIds.length > 0) {
-        await client.from('product_variants').delete().in('id', toDeleteIds);
+      if (removedVariantIds.length > 0) {
+        // 10. Do not delete variants that are still referenced by orders
+        const { data: orderItemRefs, error: refCheckErr } = await client
+          .from('order_items')
+          .select('variant_id')
+          .in('variant_id', removedVariantIds);
+
+        if (refCheckErr) {
+          return { product: null, error: `Failed to check order references: ${parseSupabaseError(refCheckErr)}` };
+        }
+
+        const referencedIds = new Set((orderItemRefs || []).map((r: any) => r.variant_id));
+        const safeToDeleteIds = removedVariantIds.filter(vId => !referencedIds.has(vId));
+
+        if (safeToDeleteIds.length > 0) {
+          const { error: delErr } = await client
+            .from('product_variants')
+            .delete()
+            .in('id', safeToDeleteIds);
+
+          // 9. Check every database operation for errors. Do not report a successful update if deleting removed variants fails.
+          if (delErr) {
+            return { product: null, error: `Failed to delete removed variants: ${parseSupabaseError(delErr)}` };
+          }
+        }
       }
     }
 
@@ -514,7 +617,10 @@ export async function serverUpdateSupabaseProduct(
         };
       });
 
-      await client.from('product_media').insert(mediaRecords);
+      const { error: mediaInsErr } = await client.from('product_media').insert(mediaRecords);
+      if (mediaInsErr) {
+        return { product: null, error: `Failed to save product media: ${parseSupabaseError(mediaInsErr)}` };
+      }
     }
 
     const updated = await serverFetchSupabaseProductById(id, client);

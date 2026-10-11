@@ -280,11 +280,42 @@ export function updateProduct(id: string, data: Partial<ProductItem>): ProductIt
   let preservedVariants = current.variants;
   if (data.variants && data.variants.length > 0) {
     const categoryForSku = data.category || current.category || 'T-Shirts';
+    const existingList = current.variants || [];
+    const matchedExistingIds = new Set<string>();
+    const seenSkus = new Set<string>(existingList.map(ev => ev.sku).filter(Boolean));
+
+    const matches: (typeof existingList[0] | null)[] = new Array(data.variants.length).fill(null);
+
+    // Pass 1: ID match first
+    data.variants.forEach((v, idx) => {
+      if (v.id) {
+        const found = existingList.find(ev => ev.id === v.id && !matchedExistingIds.has(ev.id));
+        if (found) {
+          matches[idx] = found;
+          matchedExistingIds.add(found.id);
+        }
+      }
+    });
+
+    // Pass 2: Match by normalized colour and size only against existing variants not already matched
+    data.variants.forEach((v, idx) => {
+      if (!matches[idx]) {
+        const normCol = (v.colour || '').trim().toLowerCase();
+        const normSize = (v.size || '').trim().toUpperCase();
+        const found = existingList.find(ev => 
+          !matchedExistingIds.has(ev.id) &&
+          (ev.colour || '').trim().toLowerCase() === normCol &&
+          (ev.size || '').trim().toUpperCase() === normSize
+        );
+        if (found) {
+          matches[idx] = found;
+          matchedExistingIds.add(found.id);
+        }
+      }
+    });
+
     preservedVariants = data.variants.map((v, idx) => {
-      const match = (current.variants || []).find(ev => 
-        ev.id === v.id || 
-        (ev.colour?.toLowerCase() === v.colour?.toLowerCase() && ev.size?.toUpperCase() === v.size?.toUpperCase())
-      );
+      const match = matches[idx];
       if (match) {
         return {
           ...v,
@@ -292,9 +323,19 @@ export function updateProduct(id: string, data: Partial<ProductItem>): ProductIt
           sku: match.sku,
         };
       }
+
+      let newSku = formatVariantSku(current.id, categoryForSku, idx);
+      let offset = 0;
+      while (seenSkus.has(newSku)) {
+        offset++;
+        newSku = formatVariantSku(current.id, categoryForSku, existingList.length + idx + offset);
+      }
+      seenSkus.add(newSku);
+
       return {
         ...v,
-        sku: v.sku || formatVariantSku(current.id, categoryForSku, idx),
+        id: v.id || generateDeterministicId('var'),
+        sku: newSku,
       };
     });
   }
