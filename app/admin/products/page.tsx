@@ -37,7 +37,8 @@ import {
   createProduct,
   calculateProfitMetrics, 
   calculateProductTotalStock,
-  generateDeterministicId
+  generateDeterministicId,
+  formatVariantSku
 } from '@/lib/product-store';
 import { formatZAR } from '@/lib/utils';
 import { ImageIcon, Zap } from 'lucide-react';
@@ -95,20 +96,21 @@ export default function ProductsPage() {
     const item = products.find(p => p.id === id);
     if (!item) return;
 
+    const tempId = generateDeterministicId('PRD');
     const duplicatePayload: Partial<ProductItem> = {
       ...item,
       id: undefined,
       name: `${item.name} (Copy)`,
       slug: `${item.slug}-copy-${generateDeterministicId('cpy')}`,
-      sku: `${item.sku}-CPY`,
+      sku: formatVariantSku(tempId, item.category, 0),
       status: 'DRAFT',
       published: false,
       createdAt: new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString().split('T')[0],
-      variants: (item.variants || []).map(v => ({
+      variants: (item.variants || []).map((v, idx) => ({
         ...v,
         id: generateDeterministicId('var'),
-        sku: `${v.sku}-CPY`
+        sku: formatVariantSku(tempId, item.category, idx)
       }))
     };
 

@@ -16,6 +16,9 @@ import {
   unpublishSupabaseProduct as unpublishSupa,
   deleteSupabaseProduct as deleteSupa 
 } from './supabase/products';
+import { formatVariantSku, getCategorySkuCode, extractCleanProductId, generateVariantSku } from './sku';
+
+export { formatVariantSku, getCategorySkuCode, extractCleanProductId, generateVariantSku };
 
 const STORAGE_KEY = 'veritas_products_store_v3';
 const EVENT_NAME = 'veritas_products_updated';
@@ -197,12 +200,22 @@ export function createProduct(data: Partial<ProductItem>): ProductItem {
   const id = data.id || generateUniqueProductId(products);
   const name = data.name || 'Untitled Product';
   const slug = data.slug || generateSlug(name) || `product-${id.toLowerCase()}`;
+  const categoryForSku = data.category || 'T-Shirts';
+
+  const assignedVariants: ProductVariant[] = (data.variants && data.variants.length > 0)
+    ? data.variants.map((v, idx) => ({
+        ...v,
+        sku: formatVariantSku(id, categoryForSku, idx),
+      }))
+    : [];
+
+  const rootSku = data.sku || assignedVariants[0]?.sku || formatVariantSku(id, categoryForSku, 0);
 
   const newProduct: ProductItem = {
     id,
     name,
     slug,
-    sku: data.sku || `VRT-${id}`,
+    sku: rootSku,
     shortDescription: data.shortDescription,
     description: data.description || `${name} by VERITAS.`,
     price: Number(data.price) || 0,
@@ -224,7 +237,7 @@ export function createProduct(data: Partial<ProductItem>): ProductItem {
     images: data.images || [],
     colours: data.colours || [{ name: 'Black', code: '#0A0A0A' }],
     sizes: data.sizes || ['S', 'M', 'L', 'XL'],
-    variants: data.variants || [],
+    variants: assignedVariants,
     designInfo: data.designInfo || {},
     specifications: data.specifications || '',
     createdAt: new Date().toISOString().split('T')[0],
@@ -480,30 +493,6 @@ export function generateSlug(name: string): string {
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/[\s-]+/g, '-')
     .replace(/^-+|-+$/g, '');
-}
-
-/**
- * SKU Generator for variants
- */
-export function generateVariantSku(productName: string, colour: string, size: string): string {
-  const cleanName = productName
-    .replace(/^(THE|A|AN)\s+/i, '')
-    .split(' ')
-    .slice(0, 2)
-    .join('')
-    .replace(/[^a-zA-Z0-9]/g, '')
-    .toUpperCase() || 'VRT';
-  
-  const cleanColor = colour
-    .split(' ')
-    .map(w => w[0])
-    .join('')
-    .slice(0, 3)
-    .toUpperCase() || 'BLK';
-  
-  const cleanSize = size.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || 'M';
-
-  return `VRT-${cleanName}-${cleanColor}-${cleanSize}`;
 }
 
 /**

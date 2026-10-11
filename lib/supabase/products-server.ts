@@ -3,6 +3,7 @@ import { ProductItem } from '@/lib/mock-data';
 import { DbProductVariant, DbProductMedia } from './types';
 import { getProductMediaUrl } from './media';
 import { parseSupabaseError } from './products';
+import { formatVariantSku } from '@/lib/sku';
 
 /**
  * Validates and resolves an existing category record in public.categories
@@ -261,10 +262,11 @@ export async function serverCreateSupabaseProduct(data: Partial<ProductItem>, cl
     }
 
     if (data.variants && data.variants.length > 0) {
-      const variantPayload = data.variants.map(v => ({
+      const categoryForSku = data.category || dbPayload.product_type || 'T-Shirts';
+      const variantPayload = data.variants.map((v, idx) => ({
         product_id: inserted.id,
         colour_id: colourMap[v.colour] || undefined,
-        sku: v.sku || `VRT-${inserted.id.slice(0, 6)}-${v.colour}-${v.size}`,
+        sku: formatVariantSku(inserted.id, categoryForSku, idx),
         colour: v.colour,
         size: v.size,
         stock_quantity: Number(v.stockQuantity) || 0,
@@ -417,15 +419,32 @@ export async function serverUpdateSupabaseProduct(
     }
 
     if (updates.variants && updates.variants.length > 0) {
-      const variantPayload = updates.variants.map(v => ({
-        product_id: id,
-        colour_id: (v as any).colour_id || (v as any).colourId || (v.colour ? colourMap[v.colour] : undefined),
-        sku: v.sku || `VRT-${id.slice(0, 6)}-${v.colour}-${v.size}`,
-        colour: v.colour,
-        size: v.size,
-        stock_quantity: Number(v.stockQuantity !== undefined ? v.stockQuantity : (v as any).stock_quantity) || 0,
-        low_stock_threshold: Number(v.lowStockThreshold !== undefined ? v.lowStockThreshold : (v as any).low_stock_threshold) || 5,
-      }));
+      const categoryForSku = updates.category || patch.product_type || 'T-Shirts';
+      const seenSkus = new Set<string>();
+
+      const variantPayload = updates.variants.map((v, idx) => {
+        const currentSku = v.sku?.trim();
+        const isValidSku = currentSku && 
+          !currentSku.includes('-CPY') && 
+          !currentSku.startsWith('VRT-') && 
+          currentSku.startsWith('VER-');
+
+        let assignedSku = isValidSku ? currentSku : formatVariantSku(id, categoryForSku, idx);
+        if (seenSkus.has(assignedSku)) {
+          assignedSku = formatVariantSku(id, categoryForSku, idx);
+        }
+        seenSkus.add(assignedSku);
+
+        return {
+          product_id: id,
+          colour_id: (v as any).colour_id || (v as any).colourId || (v.colour ? colourMap[v.colour] : undefined),
+          sku: assignedSku,
+          colour: v.colour,
+          size: v.size,
+          stock_quantity: Number(v.stockQuantity !== undefined ? v.stockQuantity : (v as any).stock_quantity) || 0,
+          low_stock_threshold: Number(v.lowStockThreshold !== undefined ? v.lowStockThreshold : (v as any).low_stock_threshold) || 5,
+        };
+      });
       const { error: varError } = await client.from('product_variants').insert(variantPayload);
       if (varError) {
         return { product: null, error: `Failed to update variants: ${parseSupabaseError(varError)}` };

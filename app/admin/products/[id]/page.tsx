@@ -43,7 +43,8 @@ import {
   calculateProductTotalStock, 
   generateSlug, 
   generateVariantSku,
-  generateDeterministicId
+  generateDeterministicId,
+  formatVariantSku
 } from '@/lib/product-store';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { fetchSupabaseProductById, updateSupabaseProduct, deleteSupabaseProduct } from '@/lib/supabase/products';
@@ -226,28 +227,29 @@ export default function ProductDetailPage() {
 
   // Handle Duplicate Product
   const handleDuplicate = () => {
-    const products = getStoredProducts(mockProducts);
-    const newId = generateDeterministicId('PRD');
-    const duplicateProduct: ProductItem = {
+    const tempId = generateDeterministicId('PRD');
+    const duplicatePayload: Partial<ProductItem> = {
       ...product,
-      id: newId,
+      id: undefined,
       name: `${product.name} (Copy)`,
       slug: `${product.slug}-copy-${generateDeterministicId('cpy')}`,
-      sku: `${product.sku}-CPY`,
+      sku: formatVariantSku(tempId, product.category, 0),
       status: 'DRAFT',
       published: false,
       createdAt: new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString().split('T')[0],
-      variants: (product.variants || []).map(v => ({
+      variants: (product.variants || []).map((v, idx) => ({
         ...v,
         id: generateDeterministicId('var'),
-        sku: `${v.sku}-CPY`
+        sku: formatVariantSku(tempId, product.category, idx)
       }))
     };
 
-    persistProducts([duplicateProduct, ...products]);
-    showToast(`Created duplicate "${duplicateProduct.name}"`);
-    router.push(`/admin/products/${duplicateProduct.id}`);
+    const created = createProduct(duplicatePayload);
+    showToast(`Created duplicate "${duplicatePayload.name}"`);
+    if (created?.id) {
+      router.push(`/admin/products/${created.id}`);
+    }
   };
 
   // Handle Delete Product
@@ -340,10 +342,11 @@ export default function ProductDetailPage() {
       });
       // Generate default size variants for this colour (e.g. S, M, L, XL)
       const defaultSizes = ['S', 'M', 'L', 'XL'];
-      defaultSizes.forEach(size => {
+      const startIndex = updatedVariants.length;
+      defaultSizes.forEach((size, sIdx) => {
         updatedVariants.push({
           id: generateDeterministicId('var'),
-          sku: generateVariantSku(product.slug, colourFormName.trim(), size),
+          sku: formatVariantSku(product.id, product.category, startIndex + sIdx),
           colour: colourFormName.trim(),
           size: size,
           stockQuantity: 10,
