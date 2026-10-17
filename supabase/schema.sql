@@ -145,6 +145,35 @@ CREATE TABLE IF NOT EXISTS public.order_addresses (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- 12. CUSTOMER CONTACTS & MARKETING TABLE
+CREATE TABLE IF NOT EXISTS public.customer_contacts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    phone_number TEXT NOT NULL UNIQUE,
+    raw_phone_number TEXT,
+    is_whatsapp BOOLEAN NOT NULL DEFAULT false,
+    whatsapp_number TEXT,
+    email TEXT,
+    first_name TEXT,
+    last_name TEXT,
+    email_marketing_consent BOOLEAN NOT NULL DEFAULT false,
+    whatsapp_marketing_consent BOOLEAN NOT NULL DEFAULT false,
+    email_consent_updated_at TIMESTAMPTZ,
+    whatsapp_consent_updated_at TIMESTAMPTZ,
+    email_unsubscribed_at TIMESTAMPTZ,
+    whatsapp_unsubscribed_at TIMESTAMPTZ,
+    consent_source TEXT NOT NULL DEFAULT 'web_registration' CHECK (consent_source IN ('web_registration', 'vip_modal', 'checkout', 'preference_center', 'admin_manual', 'store_concierge')),
+    consent_ip_hash TEXT,
+    consent_user_agent TEXT,
+    marketing_status TEXT NOT NULL DEFAULT 'active' CHECK (marketing_status IN ('active', 'unsubscribed', 'suppressed', 'pending')),
+    suppression_reason TEXT,
+    preference_token UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+    email_provider_synced BOOLEAN NOT NULL DEFAULT false,
+    email_provider_id TEXT,
+    email_provider_synced_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ====================================================
 -- INDEXES FOR MAXIMUM QUERY PERFORMANCE
 -- ====================================================
@@ -159,6 +188,10 @@ CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DES
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON public.order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_addresses_order_id ON public.order_addresses(order_id);
 CREATE INDEX IF NOT EXISTS idx_admin_users_user_id ON public.admin_users(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_contacts_phone ON public.customer_contacts(phone_number);
+CREATE INDEX IF NOT EXISTS idx_customer_contacts_email ON public.customer_contacts(email);
+CREATE INDEX IF NOT EXISTS idx_customer_contacts_status ON public.customer_contacts(marketing_status);
+CREATE INDEX IF NOT EXISTS idx_customer_contacts_token ON public.customer_contacts(preference_token);
 
 -- ====================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
@@ -174,6 +207,7 @@ ALTER TABLE public.product_media ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_addresses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customer_contacts ENABLE ROW LEVEL SECURITY;
 
 -- ----------------------------------------------------
 -- HELPER FUNCTIONS (SECURITY DEFINER, FIXED SEARCH_PATH)
@@ -361,3 +395,40 @@ CREATE POLICY "Admins can view order addresses"
     ON public.order_addresses FOR SELECT
     TO authenticated
     USING (public.is_admin());
+
+-- ----------------------------------------------------
+-- CUSTOMER CONTACTS & MARKETING SECURITY
+-- (ZERO PUBLIC ANON ACCESS, ADMIN ACCESS CONTROLLED)
+-- ----------------------------------------------------
+CREATE POLICY "Admins can view customer contacts"
+    ON public.customer_contacts FOR SELECT
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.admin_users au
+            WHERE au.user_id = auth.uid()
+              AND au.is_active = true
+              AND au.role IN ('super_admin', 'operations', 'marketing', 'finance')
+        )
+    );
+
+CREATE POLICY "Admins can manage customer contacts"
+    ON public.customer_contacts FOR ALL
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.admin_users au
+            WHERE au.user_id = auth.uid()
+              AND au.is_active = true
+              AND au.role IN ('super_admin', 'marketing')
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.admin_users au
+            WHERE au.user_id = auth.uid()
+              AND au.is_active = true
+              AND au.role IN ('super_admin', 'marketing')
+        )
+    );
+

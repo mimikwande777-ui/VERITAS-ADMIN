@@ -119,13 +119,18 @@ export function StoreFooter() {
                 </Link>
               </li>
               <li>
-                <span className="text-[#666] block py-0.5">
-                  Shipping: 3-5 Working Days (Nationwide)
-                </span>
+                <Link href="/register" className="hover:text-[#D4AF37] transition-colors block py-0.5">
+                  VIP Contact Registration
+                </Link>
+              </li>
+              <li>
+                <Link href="/preferences" className="hover:text-[#D4AF37] transition-colors block py-0.5">
+                  Marketing & Privacy Preferences
+                </Link>
               </li>
               <li>
                 <span className="text-[#666] block py-0.5">
-                  Returns: 14-Day Complimentary Exchange
+                  Shipping: 3-5 Working Days (Nationwide)
                 </span>
               </li>
             </ul>

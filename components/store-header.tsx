@@ -46,6 +46,7 @@ export function StoreHeader() {
     ...(hasActiveDrop001 ? [{ label: 'DROP 001', href: '/drop-001', badge: 'NEW' }] : []),
     { label: 'About', href: '/about' },
     { label: 'Contact', href: '/contact' },
+    { label: 'VIP Registry', href: '/register' },
   ];
 
   return (

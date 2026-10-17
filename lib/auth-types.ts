@@ -69,6 +69,7 @@ export interface RolePermissions {
   // Customers & Privacy
   canViewCustomers: boolean;
   canViewSensitiveCustomers: boolean;
+  canExportContacts: boolean;
 
   // System, Settings & Partner Management
   canViewSettings: boolean;
@@ -139,6 +140,7 @@ export const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalAdminRole, RolePermissi
     canViewFinancialDetails: true,
     canViewCustomers: true,
     canViewSensitiveCustomers: true,
+    canExportContacts: true,
     canViewSettings: true,
     canManageSettings: true,
     canManageUsers: true,
@@ -178,6 +180,7 @@ export const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalAdminRole, RolePermissi
     canViewFinancialDetails: false,
     canViewCustomers: true,
     canViewSensitiveCustomers: false, // Customer PII only disclosed in fulfilment context
+    canExportContacts: false,
     canViewSettings: false,
     canManageSettings: false,
     canManageUsers: false,
@@ -217,6 +220,7 @@ export const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalAdminRole, RolePermissi
     canViewFinancialDetails: false,
     canViewCustomers: true,           // VIEW ONLY (PII masked)
     canViewSensitiveCustomers: false,
+    canExportContacts: true,
     canViewSettings: false,
     canManageSettings: false,
     canManageUsers: false,
@@ -256,6 +260,7 @@ export const CANONICAL_ROLE_PERMISSIONS: Record<CanonicalAdminRole, RolePermissi
     canViewFinancialDetails: true,
     canViewCustomers: false,
     canViewSensitiveCustomers: false,
+    canExportContacts: false,
     canViewSettings: false,
     canManageSettings: false,
     canManageUsers: false,
